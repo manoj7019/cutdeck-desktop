@@ -1,0 +1,14 @@
+{
+  "name": "cutdeck",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cutdeck desktop video editor (Tauri + Rust)",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}
