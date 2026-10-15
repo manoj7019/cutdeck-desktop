@@ -54,6 +54,14 @@ button{cursor:pointer;border:0;background:none}
 .btn svg{width:16px;height:16px;flex:none}
 
 .pname{color:var(--muted);font-weight:700;padding:0 4px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.draftchip{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.dlist{display:flex;flex-direction:column;gap:8px}
+.drow{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.drow img,.drow i{width:40px;height:40px;object-fit:cover;border-radius:6px;background:#000;flex:none}
+.dinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dinfo b,.dinfo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dinfo span{font-size:11.5px;color:var(--muted)}
+.dren{font:inherit;font-weight:700;padding:3px 6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:inherit}
 .envchip{font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);cursor:default}
 .envchip.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
 .envchip.bad{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
@@ -175,9 +183,11 @@ input[type=color]{width:30px;height:28px;border:1px solid var(--line);border-rad
   <header class="top">
     <div class="brand"><i><svg viewBox="0 0 12 12"><path d="M3 2l7 4-7 4z" fill="#04202c"/></svg></i>Cutdeck</div>
     <span class="pname" id="projName">Untitled</span>
+    <span class="draftchip" id="draftChip" hidden></span>
     <button class="btn" id="bNew" title="New project">New</button>
     <button class="btn" id="bOpen" title="Open project (Ctrl+O)">Open</button>
     <button class="btn" id="bSave" title="Save project (Ctrl+S)">Save</button>
+    <button class="btn" id="bDrafts" title="Autosaved drafts">Drafts</button>
     <button class="btn" id="bImport" title="Import videos and photos (Ctrl+I)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Import</button>
     <div class="sp"></div>
     <span class="envchip" id="envChip">Checking encoder…</span>
@@ -226,6 +236,7 @@ input[type=color]{width:30px;height:28px;border:1px solid var(--line);border-rad
 <div class="modal" id="mExport" hidden>
   <div class="sheet" id="exSheet"></div>
 </div>
+<div class="modal" id="mDrafts" hidden><div class="sheet" id="draftSheet" style="width:min(560px,100%)"></div></div>
 <div class="modal" id="mAsk" hidden><div class="sheet" id="askSheet"></div></div>
 <div class="toast" id="toast" hidden></div>
 
@@ -740,8 +751,8 @@ function ask(title,body,yes,no){return new Promise(res=>{const m=$("#mAsk");m.hi
 
 /* ---------- projects ---------- */
 let projectPath=null,dirty=false;
-function markDirty(){if(!dirty){dirty=true;updTitle()}}
-function updTitle(){const n=projectPath?baseName(projectPath).replace(/\.cutdeck$/i,""):"Untitled";document.title=(dirty?"• ":"")+n+" — Cutdeck";$("#projName").textContent=n+(dirty?" •":"")}
+function markDirty(){scheduleDraft();if(!dirty){dirty=true;updTitle()}}
+function updTitle(){const n=projName();document.title=(dirty?"• ":"")+n+" — Cutdeck";$("#projName").textContent=n+(dirty?" •":"")}
 function projectJson(){
   const used=new Set();S.clips.forEach(c=>{used.add(c.mediaId);if(c.bgImageId)used.add(c.bgImageId)});if(S.music)used.add(S.music.mediaId);
   const media=[...used].map(id=>S.media.get(id)).filter(m=>m&&m.path).map(m=>({id:m.id,kind:m.kind,path:m.path}));
@@ -749,22 +760,56 @@ function projectJson(){
 async function saveProject(as){
   if(!S.clips.some(c=>S.media.get(c.mediaId)?.path))return toast("Import a clip before saving a project");
   let p=projectPath;if(as||!p){p=await invoke("pick_save",{name:projectPath?baseName(projectPath):"My video.cutdeck",ext:"cutdeck"});if(!p)return false}
-  try{await invoke("write_text",{path:p,text:projectJson()});projectPath=p;dirty=false;updTitle();toast("Project saved");return true}catch(e){toast("Could not save: "+e);return false}}
-async function guardUnsaved(){if(!dirty||!S.clips.some(c=>S.media.get(c.mediaId)?.path))return true;
-  const save=await ask("Save changes?","Your edits to this project haven't been saved.","Save","Don't save");if(save)return await saveProject(false);return true}
+  try{await invoke("write_text",{path:p,text:projectJson()});projectPath=p;dirty=false;updTitle();toast("Project saved");draftSaved="";saveDraft();return true}catch(e){toast("Could not save: "+e);return false}}
+// work is kept as a draft before switching projects, so nothing is lost
+async function guardUnsaved(){await saveDraft();return true}
 async function openProject(){
   if(!(await guardUnsaved()))return;const[p]=await invoke("pick_files",{kind:"project"});if(!p)return;
   let o;try{o=JSON.parse(await invoke("read_text",{path:p}))}catch(e){return toast("That isn't a Cutdeck project")}
   if(!o||o.app!=="cutdeck")return toast("That isn't a Cutdeck project");
+  const missing=await applyProject(o);projectPath=p;draftId=null;draftName=null;draftSaved="";updTitle();refreshAll();
+  toast(missing.length?"Couldn't find: "+missing.join(", "):"Project opened");saveDraft()}
+async function applyProject(o){
   pause();toast("Opening project…");const missing=[];
   for(const md of o.media||[]){if(!(await invoke("path_exists",{path:md.path}))){missing.push(baseName(md.path));continue}
     try{md.kind==="audio"?await loadAudio(md.path,md.id):await addPath(md.path,md.id)}catch(e){missing.push(baseName(md.path))}}
   S.clips=(o.clips||[]).filter(c=>S.media.has(c.mediaId));S.texts=o.texts||[];S.music=o.music&&S.media.has(o.music.mediaId)?o.music:null;if(o.canvas)S.canvas=o.canvas;
   S.clips.forEach(c=>{if(c.bgImageId&&!S.media.has(c.bgImageId))c.bgImageId=null;if(c.bgMode==="person")Seg.load().catch(()=>{})});
-  hist.length=0;fut.length=0;S.T=0;S.sel=S.clips[0]?{type:"clip",id:S.clips[0].id}:{type:null,id:null};projectPath=p;dirty=false;updTitle();refreshAll();
-  toast(missing.length?"Couldn't find: "+missing.join(", "):"Project opened")}
+  hist.length=0;fut.length=0;S.T=0;S.sel=S.clips[0]?{type:"clip",id:S.clips[0].id}:{type:null,id:null};dirty=false;return missing}
 async function newProject(){if(!(await guardUnsaved()))return;pause();S.clips=[];S.texts=[];if(S.music){const mm=S.media.get(S.music.mediaId);mm&&mm.el.pause()}S.music=null;
-  S.canvas={aspect:"9:16",bg:"blur",color:"#14181f"};hist.length=0;fut.length=0;S.T=0;S.sel={type:null,id:null};projectPath=null;dirty=false;updTitle();refreshAll()}
+  S.canvas={aspect:"9:16",bg:"blur",color:"#14181f"};hist.length=0;fut.length=0;S.T=0;S.sel={type:null,id:null};projectPath=null;dirty=false;draftId=null;draftName=null;draftSaved="";$("#draftChip").hidden=true;updTitle();refreshAll()}
+
+/* ---------- drafts (autosave to app data, see save_draft in lib.rs) ---------- */
+let draftId=null,draftName=null,draftSaved="",draftTimer=null,draftBusy=null;
+const newDraftId=()=>Date.now().toString(36)+"-"+uid();
+const hasReal=()=>S.clips.some(c=>S.media.get(c.mediaId)?.path);
+function projName(){return draftName||(projectPath?baseName(projectPath).replace(/\.cutdeck$/i,""):"Untitled")}
+function draftThumb(){try{const s=$("#pv"),c=document.createElement("canvas"),k=96/Math.max(s.width,s.height);c.width=Math.round(s.width*k);c.height=Math.round(s.height*k);c.getContext("2d").drawImage(s,0,0,c.width,c.height);return c.toDataURL("image/jpeg",.6)}catch(e){return null}}
+async function saveDraft(){while(draftBusy)await draftBusy;if(!hasReal())return;const j=projectJson();if(j===draftSaved)return;if(!draftId)draftId=newDraftId();
+  draftBusy=invoke("save_draft",{id:draftId,json:j,meta:{name:projName(),clips:S.clips.filter(c=>S.media.get(c.mediaId)?.path).length,projectPath,thumb:draftThumb()}})
+    .then(t=>{draftSaved=j;const c=$("#draftChip");c.hidden=false;c.textContent="Saved as draft · "+new Date(t).toTimeString().slice(0,5)})
+    .catch(e=>console.warn("draft save failed",e)).finally(()=>{draftBusy=null});await draftBusy}
+function scheduleDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,2000)}
+setInterval(saveDraft,30000);
+async function openDraft(d){await saveDraft();let o;try{o=JSON.parse(await invoke("load_draft",{id:d.id}))}catch(e){return toast("Could not open draft: "+e)}
+  const missing=await applyProject(o);projectPath=d.projectPath||null;draftId=d.id;
+  draftName=d.name&&(!projectPath||d.name!==baseName(projectPath).replace(/\.cutdeck$/i,""))?d.name:null;draftSaved=projectJson();updTitle();refreshAll();
+  toast(missing.length?"Couldn't find: "+missing.join(", "):"Draft opened")}
+async function showDrafts(launch){let list=[];try{list=await invoke("list_drafts")}catch(e){return toast("Could not read drafts: "+e)}
+  if(launch&&!list.length)return;const m=$("#mDrafts");m.hidden=false;
+  const fmt=t=>new Date(t).toLocaleString([],{dateStyle:"medium",timeStyle:"short"});
+  $("#draftSheet").innerHTML=`<h3>${launch?"Welcome back":"Drafts"}</h3>${launch?`<button class="btn pri" id="dResume">Resume last draft · ${esc(list[0].name||"Untitled")}</button>`:""}
+    <div class="dlist">${list.length?list.map(d=>`<div class="drow" data-id="${esc(d.id)}">${d.thumb?`<img src="${esc(d.thumb)}" alt="">`:`<i></i>`}<div class="dinfo"><b>${esc(d.name||"Untitled")}</b><span>${fmt(d.updated)} · ${d.clips||0} clip${d.clips==1?"":"s"}${d.id===draftId?" · current":""}</span></div><button class="btn" data-a="open">Open</button><button class="btn" data-a="ren">Rename</button><button class="btn" data-a="del">Delete</button></div>`).join(""):`<p class="sub" style="margin:0;color:var(--muted)">No drafts yet. Projects are saved here automatically as you edit.</p>`}</div>
+    <div class="chips" style="justify-content:flex-end"><button class="btn" id="dNew">New project</button><button class="btn" id="dClose">${launch?"Show sample":"Close"}</button></div>`;
+  const close=()=>{m.hidden=true};$("#dClose").onclick=close;$("#dNew").onclick=()=>{close();newProject()};
+  if($("#dResume"))$("#dResume").onclick=()=>{close();openDraft(list[0])};
+  $("#draftSheet").querySelectorAll(".drow").forEach(r=>{const d=list.find(x=>x.id===r.dataset.id);
+    r.querySelector("[data-a=open]").onclick=()=>{close();openDraft(d)};
+    r.querySelector("[data-a=del]").onclick=async()=>{if(!(await ask("Delete draft?",`"${d.name||"Untitled"}" will be removed from Drafts.`,"Delete","Cancel")))return;
+      try{await invoke("delete_draft",{id:d.id})}catch(e){toast(String(e))}if(d.id===draftId){draftId=null;draftSaved=""}showDrafts(false)};
+    r.querySelector("[data-a=ren]").onclick=()=>{const inp=document.createElement("input");inp.className="dren";inp.value=d.name||"";r.querySelector("b").replaceWith(inp);inp.focus();inp.select();let done=false;
+      const fin=async ok=>{if(done)return;done=true;const n=inp.value.trim();if(ok&&n&&n!==d.name){try{await invoke("rename_draft",{id:d.id,name:n});if(d.id===draftId){draftName=n;updTitle()}}catch(e){toast(String(e))}}showDrafts(false)};
+      inp.onkeydown=e=>{e.stopPropagation();if(e.key==="Enter")fin(true);else if(e.key==="Escape")fin(false)};inp.onblur=()=>fin(true)}})}
 
 /* ---------- files ---------- */
 async function saveBlob(blob,name){const ext=name.split(".").pop();const p=await invoke("pick_save",{name,ext});if(!p)return;
@@ -846,7 +891,7 @@ async function runExport(){
 /* ---------- wiring ---------- */
 $("#bImport").onclick=async()=>{const ps=await invoke("pick_files",{kind:"media"});if(ps.length)importFiles(ps)};
 $("#bAddMusic").onclick=async()=>{const[p]=await invoke("pick_files",{kind:"audio"});if(p)addMusic(p)};
-$("#bOpen").onclick=openProject;$("#bSave").onclick=()=>saveProject(false);$("#bNew").onclick=newProject;
+$("#bOpen").onclick=openProject;$("#bSave").onclick=()=>saveProject(false);$("#bNew").onclick=newProject;$("#bDrafts").onclick=()=>showDrafts(false);
 $("#bAddText").onclick=addText;$("#bSplit").onclick=splitAt;$("#bDup").onclick=dupSel;$("#bDel").onclick=delSel;
 $("#bUndo").onclick=undo;$("#bRedo").onclick=redo;$("#bPlay").onclick=()=>S.playing?pause():play();
 $("#bZoomIn").onclick=()=>zoom(1.4);$("#bZoomOut").onclick=()=>zoom(1/1.4);
@@ -862,7 +907,7 @@ addEventListener("keydown",e=>{const tag=(e.target.tagName||"").toLowerCase();co
   if(mod&&k==="o"){e.preventDefault();openProject();return}
   if(mod&&k==="e"){e.preventDefault();openExport();return}
   if(mod&&k==="i"){e.preventDefault();$("#bImport").click();return}
-  if(tag==="input"||tag==="textarea"||!$("#mExport").hidden||!$("#mAsk").hidden)return;
+  if(tag==="input"||tag==="textarea"||!$("#mExport").hidden||!$("#mAsk").hidden||!$("#mDrafts").hidden)return;
   if(e.code==="Space"){e.preventDefault();S.playing?pause():play()}
   else if(mod&&k==="z"){e.preventDefault();e.shiftKey?redo():undo()}
   else if(mod&&k==="y"){e.preventDefault();redo()}
@@ -870,9 +915,9 @@ addEventListener("keydown",e=>{const tag=(e.target.tagName||"").toLowerCase();co
   else if(e.key==="Delete"||e.key==="Backspace")delSel();
   else if(e.key==="ArrowRight")seek(S.T+(e.shiftKey?1:1/30));else if(e.key==="ArrowLeft")seek(S.T-(e.shiftKey?1:1/30));
   else if(e.key==="+"||e.key==="=")zoom(1.4);else if(e.key==="-")zoom(1/1.4)});
-// ask before closing with unsaved work
-try{const win=TAURI.window.getCurrentWindow();win.onCloseRequested(async ev=>{if(!dirty||!S.clips.some(c=>S.media.get(c.mediaId)?.path))return;ev.preventDefault();
-  if(await guardUnsaved()){dirty=false;win.destroy()}})}catch(e){}
+// save the project as a draft before the window closes
+try{const win=TAURI.window.getCurrentWindow();let closing=false;win.onCloseRequested(async ev=>{if(closing||!hasReal())return;ev.preventDefault();closing=true;
+  clearTimeout(draftTimer);try{await saveDraft()}finally{win.destroy()}})}catch(e){}
 
 (async function init(){
   try{MEDIA_BASE=await invoke("media_base")}catch(e){toast("Could not start local media access: "+e)}
@@ -881,7 +926,7 @@ try{const win=TAURI.window.getCurrentWindow();win.onCloseRequested(async ev=>{if
   S.clips=[newClip(a),newClip(b)];S.clips[1].trans="fade";S.clips[1].filter="vivid";
   S.texts=[{id:uid(),text:"SAMPLE PROJECT",start:0,end:2.6,x:.5,y:.2,size:.07,color:"#ffffff",font:"Anton",style:"shadow",box:"#111111",sample:true},
            {id:uid(),text:"Import or drop your clips to start",start:3,end:6,x:.5,y:.82,size:.032,color:"#111111",font:"Manrope",style:"box",box:"#ffd23f",sample:true}];
-  S.sel={type:"clip",id:S.clips[0].id};updPlayBtn();refreshAll();dirty=false;updTitle();loadEnv()})();
+  S.sel={type:"clip",id:S.clips[0].id};updPlayBtn();refreshAll();dirty=false;updTitle();loadEnv();showDrafts(true)})();
 </script>
 </body>
 </html>

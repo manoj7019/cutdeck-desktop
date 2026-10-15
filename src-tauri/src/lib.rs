@@ -642,6 +642,79 @@ fn export_cancel(state: State<'_, AppState>) {
     }
 }
 
+// ---------------------------------------------------------------- drafts
+
+/// Autosaved projects live in <app data>/drafts as <id>.cutdeck plus <id>.json metadata.
+fn drafts_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let d = app.path().app_data_dir().map_err(|e| e.to_string())?.join("drafts");
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
+}
+
+fn draft_path(app: &AppHandle, id: &str, ext: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err("Invalid draft id".into());
+    }
+    Ok(drafts_dir(app)?.join(format!("{id}.{ext}")))
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+#[tauri::command]
+async fn list_drafts(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(drafts_dir(&app)?).map_err(|e| e.to_string())?.flatten() {
+        let p = e.path();
+        if p.extension().and_then(|x| x.to_str()) != Some("json") || !p.with_extension("cutdeck").is_file() {
+            continue;
+        }
+        if let Some(v) = std::fs::read_to_string(&p).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()) {
+            out.push(v);
+        }
+    }
+    out.sort_by_key(|v| std::cmp::Reverse(v["updated"].as_u64().unwrap_or(0)));
+    Ok(out)
+}
+
+/// Writes the project JSON and its metadata; returns the saved time (ms since epoch).
+#[tauri::command]
+async fn save_draft(app: AppHandle, id: String, json: String, mut meta: serde_json::Value) -> Result<u64, String> {
+    let p = draft_path(&app, &id, "cutdeck")?;
+    let tmp = p.with_extension("tmp");
+    std::fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
+    let t = now_ms();
+    if !meta.is_object() {
+        meta = serde_json::json!({});
+    }
+    meta["id"] = id.clone().into();
+    meta["updated"] = t.into();
+    std::fs::write(draft_path(&app, &id, "json")?, meta.to_string()).map_err(|e| e.to_string())?;
+    Ok(t)
+}
+
+#[tauri::command]
+async fn load_draft(app: AppHandle, id: String) -> Result<String, String> {
+    std::fs::read_to_string(draft_path(&app, &id, "cutdeck")?).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn rename_draft(app: AppHandle, id: String, name: String) -> Result<(), String> {
+    let p = draft_path(&app, &id, "json")?;
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    v["name"] = name.into();
+    std::fs::write(p, v.to_string()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn delete_draft(app: AppHandle, id: String) -> Result<(), String> {
+    let _ = std::fs::remove_file(draft_path(&app, &id, "json")?);
+    let _ = std::fs::remove_file(draft_path(&app, &id, "cutdeck")?);
+    Ok(())
+}
+
 // ---------------------------------------------------------------- app
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -668,6 +741,7 @@ pub fn run() {
                     eprintln!("cutout unavailable: {e}");
                 }
             });
+            let _ = drafts_dir(app.handle());
             // clear leftovers from a previous crash
             if let Ok(d) = app.path().app_cache_dir() {
                 let _ = std::fs::remove_dir_all(d.join("work"));
@@ -677,7 +751,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             env_status, probe_media, pick_files, pick_save, write_text, read_text, write_bytes,
             reveal, path_exists, media_base, make_proxy, cutout_mask, write_temp,
-            export_run, export_cancel
+            export_run, export_cancel, list_drafts, save_draft, load_draft, rename_draft, delete_draft
         ])
         .run(tauri::generate_context!())
         .expect("error while running Cutdeck");
