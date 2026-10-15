@@ -85,6 +85,11 @@ button{cursor:pointer;border:0;background:none}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .num{width:100%;padding:7px 9px;border-radius:7px;background:var(--bg);border:1px solid var(--line);font-family:var(--f-mono)}
 textarea.num{font-family:var(--f-ui);resize:vertical;min-height:64px}
+.tcf{display:flex;align-items:center;gap:3px}
+.tcf .num{flex:1;min-width:0;padding:7px 4px;text-align:center}
+.tcf .num.s{flex:1.6}
+.tcf .num:disabled{opacity:.35}
+.tcf i{font-style:normal;color:var(--muted);font-family:var(--f-mono)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .note{font-size:12px;color:var(--muted);line-height:1.5;padding:10px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
 .note b{color:var(--fg)}
@@ -537,7 +542,7 @@ function onTrackMove(e){if(!tdrag)return;const dx=e.clientX-tdrag.x0;if(!tdrag.m
     if(tdrag.handle==="l"){c.inP=clamp(o.inP+dt*o.speed,0,o.outP-0.1);seek(tdrag.start)}
     else if(tdrag.handle==="r"){const max=m.kind==="video"?m.dur:60;c.outP=clamp(o.outP+dt*o.speed,o.inP+0.1,max);seek(tdrag.start+clipLen(c)-0.01)}
     else{tdrag.blk.classList.add("dragging");tdrag.blk.style.transform=`translateX(${dx}px)`;return}
-    renderTimeline();const nb=$(`#trkV .blk[data-id="${c.id}"]`);if(nb)tdrag.blk=nb}
+    renderTimeline();const nb=$(`#trkV .blk[data-id="${c.id}"]`);if(nb)tdrag.blk=nb;trimSync(c)}
   else if(tdrag.trk==="#trkT"){const t=S.texts.find(t=>t.id===tdrag.id),len=o.end-o.start;
     if(tdrag.handle==="l")t.start=clamp(o.start+dt,0,o.end-0.2);else if(tdrag.handle==="r")t.end=Math.max(o.start+0.2,o.end+dt);else{t.start=Math.max(0,o.start+dt);t.end=t.start+len}
     renderTimeline();requestStill()}
@@ -591,6 +596,21 @@ function panelRefreshIf(tool){if(S.tool===tool)renderPanel()}
 const chip=(on,attrs,label)=>`<button class="chip${on?" on":""}" ${attrs}>${label}</button>`;
 function slider(id,label,min,max,step,val,out){return`<div class="grp"><div class="lbl"><label for="${id}">${label}</label><output id="${id}o">${out}</output></div><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`}
 function bindSlider(id,fn,fmtOut){const el=$("#"+id);if(!el)return;el.addEventListener("input",()=>{beginEdit();const v=parseFloat(el.value);fn(v);$("#"+id+"o").textContent=fmtOut?fmtOut(v):v;requestStill();renderTimelineSoon()});el.addEventListener("change",endEdit)}
+/* ---------- trim time fields: HH : MM : SS.ss, value = seconds ---------- */
+function tcSplit(t){t=Math.max(0,Math.round(t*100)/100);const hh=Math.floor(t/3600),mm=Math.floor((t-hh*3600)/60);return[hh,mm,t-hh*3600-mm*60]}
+function tcField(id,t,hours){const[hh,mm,ss]=tcSplit(t);const f=(u,v,cls,dis)=>`<input class="num${cls}" id="${id}_${u}" data-u="${u}" type="number" step="any" value="${v}"${dis?" disabled":""} aria-label="${{h:"Hours",m:"Minutes",s:"Seconds"}[u]}">`;
+  return`<div class="tcf" id="${id}">${f("h",String(hh).padStart(2,"0"),"",!hours&&!hh)}<i>:</i>${f("m",String(mm).padStart(2,"0"),"")}<i>:</i>${f("s",ss.toFixed(2).padStart(5,"0")," s")}</div>`}
+function tcSet(id,t){const[hh,mm,ss]=tcSplit(t),g=$("#"+id);if(!g)return;g.querySelector("[data-u=h]").value=String(hh).padStart(2,"0");g.querySelector("[data-u=m]").value=String(mm).padStart(2,"0");g.querySelector("[data-u=s]").value=ss.toFixed(2).padStart(5,"0")}
+function tcRead(id){const g=$("#"+id),v=u=>parseFloat(g.querySelector(`[data-u=${u}]`).value)||0;return v("h")*3600+v("m")*60+v("s")}
+/* typing, spinner arrows, keyboard arrows and the mouse wheel all go through the total seconds, so 75 s carries to 1:15 */
+function bindTc(id,apply){const g=$("#"+id),cur=()=>tcRead(id);
+  const unit=(inp,e)=>inp.dataset.u==="h"?3600:inp.dataset.u==="m"?60:(e&&e.shiftKey?0.1:1);
+  g.querySelectorAll("input").forEach(inp=>{
+    inp.onchange=()=>apply(id,cur());
+    inp.onkeydown=e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown"){e.preventDefault();apply(id,cur()+(e.key==="ArrowUp"?1:-1)*unit(inp,e))}else if(e.key==="Enter")inp.blur()};
+    inp.addEventListener("wheel",e=>{if(inp.disabled)return;e.preventDefault();apply(id,cur()+(e.deltaY<0?1:-1)*unit(inp,e))},{passive:false})});
+  g.addEventListener("focusout",()=>endEdit())}
+function trimSync(c){if(S.tool!=="trim"||S.sel.id!==c.id||!$("#tIn"))return;tcSet("tIn",c.inP);tcSet("tOut",c.outP);const l=$("#tLen");if(l)l.textContent=fmt(clipLen(c))}
 let tlSoon=false;function renderTimelineSoon(){if(tlSoon)return;tlSoon=true;requestAnimationFrame(()=>{tlSoon=false;renderTimeline()})}
 function needClip(){return`<h2>${TOOLS.find(t=>t[0]===S.tool)[1]}</h2><p class="empty">Select a clip on the timeline, or move the playhead over one, to use this tool.</p>`}
 
@@ -613,15 +633,16 @@ function renderPanel(){
   case"trim":{
     const isV=m.kind==="video";
     h=`<h2>Trim</h2><p class="sub">${esc(m.name)}${isV?` · ${fmt(m.dur)} source`:" · photo"}</p>
-    ${isV?`<div class="row2"><div class="grp"><div class="lbl"><label for="tIn">Start</label></div><input class="num" id="tIn" type="number" step="0.1" min="0" value="${c.inP.toFixed(2)}"></div>
-    <div class="grp"><div class="lbl"><label for="tOut">End</label></div><input class="num" id="tOut" type="number" step="0.1" value="${c.outP.toFixed(2)}"></div></div>`
+    ${isV?`<div class="row2"><div class="grp"><div class="lbl"><label for="tIn_m">Start</label></div>${tcField("tIn",c.inP,m.dur>=3600)}</div>
+    <div class="grp"><div class="lbl"><label for="tOut_m">End</label></div>${tcField("tOut",c.outP,m.dur>=3600)}</div></div>`
     :slider("tDur","Duration",.5,30,.1,c.outP,c.outP.toFixed(1)+"s")}
-    <div class="grp"><div class="lbl">On timeline</div><div class="speedbig" style="font-size:26px">${fmt(clipLen(c))}</div></div>
+    <div class="grp"><div class="lbl">On timeline</div><div class="speedbig" id="tLen" style="font-size:26px">${fmt(clipLen(c))}</div></div>
     <div class="grp"><button class="btn" id="tSplit">Split at playhead</button></div>
     <div class="grp"><div class="lbl">Transition into this clip</div><div class="chips">${chip(c.trans==="none",'data-tr="none"',"Cut")}${chip(c.trans==="fade",'data-tr="fade"',"Fade from black")}</div></div>
     <p class="note">Drag the white handles on a selected clip to trim it on the timeline.</p>`;
     P.innerHTML=h;
-    if(isV){const ap=()=>{snap();c.inP=clamp(parseFloat($("#tIn").value)||0,0,m.dur-0.1);c.outP=clamp(parseFloat($("#tOut").value)||m.dur,c.inP+0.1,m.dur);refreshAll()};$("#tIn").onchange=ap;$("#tOut").onchange=ap}
+    if(isV){const ap=(which,v)=>{beginEdit();if(which==="tIn"){c.inP=clamp(v,0,m.dur-0.1);c.outP=clamp(c.outP,c.inP+0.1,m.dur)}else c.outP=clamp(v,c.inP+0.1,m.dur);
+        trimSync(c);renderTimelineSoon();updTime();requestStill()};bindTc("tIn",ap);bindTc("tOut",ap)}
     else bindSlider("tDur",v=>{c.outP=v},v=>v.toFixed(1)+"s");
     $("#tSplit").onclick=splitAt;P.querySelectorAll("[data-tr]").forEach(b=>b.onclick=()=>{snap();c.trans=b.dataset.tr;renderPanel();requestStill()});
     return}
