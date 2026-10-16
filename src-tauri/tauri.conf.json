@@ -47,7 +47,8 @@
     },
     "resources": {
       "resources/models/*": "models/",
-      "resources/onnxruntime/*": "onnxruntime/"
+      "resources/onnxruntime/*": "onnxruntime/",
+      "resources/whisper/*": "whisper/"
     }
   }
 }

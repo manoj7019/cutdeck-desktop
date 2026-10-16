@@ -16,6 +16,9 @@
 @font-face{font-family:"Playfair Display";src:url(fonts/playfair-display-latin-700-normal.woff2) format("woff2");font-weight:700;font-display:block}
 @font-face{font-family:"Pacifico";src:url(fonts/pacifico-latin-400-normal.woff2) format("woff2");font-weight:400;font-display:block}
 @font-face{font-family:"Caveat";src:url(fonts/caveat-latin-700-normal.woff2) format("woff2");font-weight:700;font-display:block}
+/* caption fonts: Latin + Devanagari in one face (also written next to the export for libass) */
+@font-face{font-family:"Cutdeck Captions";src:url(fonts/CutdeckCaptions.ttf) format("truetype");font-display:block}
+@font-face{font-family:"Cutdeck Poppins";src:url(fonts/CutdeckPoppins.ttf) format("truetype");font-display:block}
 </style>
 <style>
 /* Layout: one-screen dark editing suite — tool rail + inspector | preview monitor, full-width timeline below. Single dark look by choice (video work is judged on a dark surround). */
@@ -24,7 +27,7 @@
   --bg:#0e1116; --panel:#151a21; --panel2:#1c222b; --raise:#252c37; --line:#2b333f;
   --fg:#e7ebf0; --muted:#8a95a4; --dim:#5d6876;
   --accent:#5ac8fa; --accent-ink:#04202c; --playhead:#ffd23f; --danger:#ff6470; --ok:#52d69a;
-  --clip:#2d6f8f; --text-trk:#8a5cf6; --music-trk:#2fa874;
+  --clip:#2d6f8f; --text-trk:#8a5cf6; --music-trk:#2fa874; --cap-trk:#c98a1e;
   --f-ui:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:8px;
@@ -148,6 +151,7 @@ input[type=color]{width:30px;height:28px;border:1px solid var(--line);border-rad
 .blk.clip .strip{position:absolute;inset:0;display:flex;opacity:.85;pointer-events:none}
 .blk.clip .strip img{height:100%;flex:none;object-fit:cover}
 .blk.txt{background:color-mix(in srgb,var(--text-trk) 70%,var(--bg));font-size:11px;font-weight:700;padding:0 8px;white-space:nowrap}
+.blk.cap{background:color-mix(in srgb,var(--cap-trk) 72%,var(--bg));font-size:11px;font-weight:700;padding:0 8px;white-space:nowrap;font-family:"Cutdeck Captions",var(--f-ui)}
 .blk.mus{background:color-mix(in srgb,var(--music-trk) 70%,var(--bg));font-size:11px;font-weight:700;padding:0 8px;white-space:nowrap}
 .blk.sel{border-color:var(--fg);z-index:2}
 .blk .badge{position:absolute;left:4px;bottom:4px;font-family:var(--f-mono);font-size:10px;background:rgba(0,0,0,.7);padding:1px 5px;border-radius:4px;pointer-events:none;white-space:nowrap}
@@ -221,6 +225,7 @@ input[type=color]{width:30px;height:28px;border:1px solid var(--line);border-rad
       <button class="btn" id="bDup">Duplicate</button>
       <button class="btn" id="bDel" title="Delete (Del)">Delete</button>
       <button class="btn" id="bAddText">+ Text</button>
+      <button class="btn" id="bAddCap" title="Auto captions in English or Hindi">+ Captions</button>
       <button class="btn" id="bAddMusic">+ Music</button>
             <div class="sp"></div>
       <span class="hint">Space play · S split · Del delete · Ctrl+Z undo · Ctrl+S save · Ctrl+E export</span>
@@ -232,6 +237,7 @@ input[type=color]{width:30px;height:28px;border:1px solid var(--line);border-rad
         <div class="ruler" id="ruler"></div>
         <div class="track v" id="trkV"></div>
         <div class="track t" id="trkT"></div>
+        <div class="track t" id="trkC"></div>
         <div class="track m" id="trkM"></div>
         <div class="ph-line" id="phLine"></div>
       </div>
@@ -269,15 +275,16 @@ const FILTERS=[
  ["dusk","Dusk","hue-rotate(-12deg) saturate(1.2)",["#ff4f8b",.12]],["mint","Mint","hue-rotate(10deg) saturate(.9) brightness(1.05)",["#3fffc0",.08]],
  ["teal","Cinema","contrast(1.15) saturate(1.1)",["#0f6b7a",.14]],["pop","Pop","saturate(1.8) contrast(1.2) brightness(1.05)",null]];
 const FONTS=["Anton","Manrope","Bebas Neue","Playfair Display","Pacifico","Caveat"];
+const CAP_DEFAULT={preset:"clean",font:"noto",pos:"bottom",size:1,lang:"auto",quality:"accurate"};
 const TCOLORS=["#ffffff","#111111","#ffd23f","#ff6470","#5ac8fa","#52d69a","#c58cff","#ff9a3c"];
 
 /* ---------- state ---------- */
-const S={media:new Map(),clips:[],texts:[],music:null,canvas:{aspect:"9:16",bg:"blur",color:"#14181f"},
+const S={media:new Map(),clips:[],texts:[],music:null,canvas:{aspect:"9:16",bg:"blur",color:"#14181f"},caps:[],capStyle:{...CAP_DEFAULT},
   sel:{type:null,id:null},T:0,playing:false,tool:"canvas",pps:60,eyedrop:false};
 const hist=[],fut=[];
-function snapData(){return JSON.stringify({clips:S.clips,texts:S.texts,music:S.music,canvas:S.canvas})}
+function snapData(){return JSON.stringify({clips:S.clips,texts:S.texts,music:S.music,canvas:S.canvas,caps:S.caps,capStyle:S.capStyle})}
 function snap(){markDirty();hist.push(snapData());if(hist.length>120)hist.shift();fut.length=0;updUndo()}
-function restore(j){const o=JSON.parse(j);S.clips=o.clips;S.texts=o.texts;S.music=o.music;S.canvas=o.canvas;refreshAll()}
+function restore(j){const o=JSON.parse(j);S.clips=o.clips;S.texts=o.texts;S.music=o.music;S.canvas=o.canvas;S.caps=o.caps||[];S.capStyle=o.capStyle||S.capStyle;refreshAll()}
 function undo(){if(!hist.length)return;markDirty();fut.push(snapData());restore(hist.pop());updUndo()}
 function redo(){if(!fut.length)return;markDirty();hist.push(snapData());restore(fut.pop());updUndo()}
 function updUndo(){$("#bUndo").disabled=!hist.length;$("#bRedo").disabled=!fut.length}
@@ -434,6 +441,8 @@ async function compose(ctx,W,H,T,ly,exact,noText){
     if(c.trans==="fade"){const lt=T-hit.start,d=Math.min(.6,clipLen(c)/3);if(lt<d){ctx.fillStyle=`rgba(0,0,0,${1-lt/d})`;ctx.fillRect(0,0,W,H)}}
   }
   ly.boxes={};if(!noText)for(const t of S.texts)if(T>=t.start&&T<t.end){const b=drawText(ctx,W,H,t);ly.boxes[t.id]={x0:b.x0/W,x1:b.x1/W,y0:b.y0/H,y1:b.y1/H}}
+  ly.capBox=null;if(!noText&&S.caps.length){const x=capAt(T);if(x){const b=drawCaption(ctx,W,H,x,T);if(b)ly.capBox={...b,id:x.cap.id,clip:x.clip.id}}}
+  if(ly===PL&&S.sel.type==="cap"&&ly.capBox&&ly.capBox.id===S.sel.id){const b=ly.capBox;ctx.save();ctx.strokeStyle="#e8a33d";ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.strokeRect(b.x0*W-4,b.y0*H-2,(b.x1-b.x0)*W+8,(b.y1-b.y0)*H+4);ctx.restore()}
   if(ly===PL&&S.sel.type==="text"&&ly.boxes[S.sel.id]){const b=ly.boxes[S.sel.id];ctx.save();ctx.strokeStyle="#5ac8fa";ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.strokeRect(b.x0*W,b.y0*H,(b.x1-b.x0)*W,(b.y1-b.y0)*H);ctx.restore()}
   if(!S.clips.length&&ly===PL){ctx.fillStyle="#8a95a4";ctx.font=`700 ${Math.round(W/22)}px Manrope, sans-serif`;ctx.textAlign="center";ctx.fillText("Import videos or photos to start",W/2,H/2)}
 }
@@ -490,6 +499,7 @@ pv.addEventListener("pointerdown",e=>{
       const p=lx.getImageData(Math.floor(nx*pv.width),Math.floor(ny*pv.height),1,1).data;snap();c.chroma="#"+[p[0],p[1],p[2]].map(v=>v.toString(16).padStart(2,"0")).join("");}
     S.eyedrop=false;$("#app").classList.remove("eyedrop");renderPanel();requestStill();return}
   let hitT=null;for(const t of [...S.texts].reverse()){const b=PL.boxes[t.id];if(b&&nx>=b.x0&&nx<=b.x1&&ny>=b.y0&&ny<=b.y1){hitT=t;break}}
+  const cb=PL.capBox;if(!hitT&&cb&&nx>=cb.x0&&nx<=cb.x1&&ny>=cb.y0&&ny<=cb.y1){S.sel={type:"cap",id:cb.id,clip:cb.clip};S.tool="captions";renderRail();renderPanel();renderTimeline();requestStill();return}
   if(hitT){S.sel={type:"text",id:hitT.id};if(S.tool!=="text"){S.tool="text"}renderRail();renderPanel();renderTimeline();pvDrag={kind:"text",t:hitT,sx:nx,sy:ny,ox:hitT.x,oy:hitT.y,snapped:false}}
   else{const h=clipAt(S.T);if(!h)return;if(S.sel.id!==h.clip.id){S.sel={type:"clip",id:h.clip.id};if(!CLIP_TOOLS.includes(S.tool))S.tool="transform";renderRail();renderPanel();renderTimeline()}
     pvDrag={kind:"clip",c:h.clip,sx:nx,sy:ny,ox:h.clip.px,oy:h.clip.py,snapped:false}}
@@ -516,6 +526,7 @@ function renderTimeline(){
     vh+=`<div class="blk clip${sel?" sel":""}" data-id="${c.id}" style="left:${x*pps}px;width:${w}px"><div class="strip">${imgs}</div>${w>46?`<span class="badge">${fmt(l)}</span>`:""}${c.speed!==1&&w>30?`<span class="badge spd">${fmtSpeed(c.speed)}</span>`:""}<div class="h l" data-h="l"></div><div class="h r" data-h="r"></div></div>`;x+=l}
   $("#trkV").innerHTML=vh||'<div class="trkempty">Click Import or drop files here</div>';
   $("#trkT").innerHTML=S.texts.map(t=>`<div class="blk txt${S.sel.id===t.id?" sel":""}" data-id="${t.id}" style="left:${t.start*pps}px;width:${Math.max(8,(t.end-t.start)*pps)}px">${esc(t.text.split("\n")[0])}<div class="h l" data-h="l"></div><div class="h r" data-h="r"></div></div>`).join("")||'<div class="trkempty">Text</div>';
+  $("#trkC").innerHTML=capInstances().map(x=>`<div class="blk cap${S.sel.type==="cap"&&S.sel.id===x.cap.id&&S.sel.clip===x.clip.id?" sel":""}" data-id="${x.cap.id}" data-clip="${x.clip.id}" style="left:${x.T0*pps}px;width:${Math.max(6,(x.T1-x.T0)*pps)}px" title="${esc(x.cap.text)}">${esc(x.cap.text)}<div class="h l" data-h="l"></div><div class="h r" data-h="r"></div></div>`).join("")||'<div class="trkempty">Captions</div>';
   if(S.music){const mm=S.media.get(S.music.mediaId);const l=Math.min(mm.dur-S.music.offset,Math.max(0,T-S.music.start));
     $("#trkM").innerHTML=`<div class="blk mus${S.sel.type==="music"?" sel":""}" data-id="music" style="left:${S.music.start*pps}px;width:${Math.max(8,l*pps)}px">♪ ${esc(mm.name)}</div>`}
   else $("#trkM").innerHTML='<div class="trkempty">Music</div>';
@@ -526,15 +537,15 @@ function tlTimeFromEvent(e){const r=$("#tlInner").getBoundingClientRect();return
 $("#ruler").addEventListener("pointerdown",e=>{const el=e.currentTarget;el.setPointerCapture(e.pointerId);seek(tlTimeFromEvent(e));const mv=ev=>seek(tlTimeFromEvent(ev));el.addEventListener("pointermove",mv);el.addEventListener("pointerup",()=>el.removeEventListener("pointermove",mv),{once:true})});
 // track blocks
 let tdrag=null;
-for(const trk of ["#trkV","#trkT","#trkM"])$(trk).addEventListener("pointerdown",e=>{
+for(const trk of ["#trkV","#trkT","#trkC","#trkM"])$(trk).addEventListener("pointerdown",e=>{
   const blk=e.target.closest(".blk");if(!blk){seek(tlTimeFromEvent(e));return}
   const id=blk.dataset.id,handle=e.target.dataset.h||null;
   if(trk==="#trkV"){S.sel={type:"clip",id};if(!CLIP_TOOLS.includes(S.tool))S.tool="trim"}
-  else if(trk==="#trkT"){S.sel={type:"text",id};S.tool="text"}else{S.sel={type:"music",id:"music"};S.tool="music"}
+  else if(trk==="#trkT"){S.sel={type:"text",id};S.tool="text"}else if(trk==="#trkC"){S.sel={type:"cap",id,clip:blk.dataset.clip};S.tool="captions"}else{S.sel={type:"music",id:"music"};S.tool="music"}
   renderRail();renderPanel();
   tdrag={trk,id,handle,x0:e.clientX,moved:false,blk,el:e.target};
   if(trk==="#trkV"){const c=S.clips.find(c=>c.id===id);tdrag.orig={...c};tdrag.start=clipStart(id)}
-  else if(trk==="#trkT"){const t=S.texts.find(t=>t.id===id);tdrag.orig={...t}}else tdrag.orig={...S.music};
+  else if(trk==="#trkT"){const t=S.texts.find(t=>t.id===id);tdrag.orig={...t}}else if(trk==="#trkC"){tdrag.ins=selCap();tdrag.orig=tdrag.ins?{...tdrag.ins.cap}:null}else tdrag.orig={...S.music};
   $(trk).setPointerCapture(e.pointerId);
   document.querySelectorAll(".blk.sel").forEach(b=>b.classList.remove("sel"));blk.classList.add("sel");if(!S.playing)requestStill()});
 function onTrackMove(e){if(!tdrag)return;const dx=e.clientX-tdrag.x0;if(!tdrag.moved){if(Math.abs(dx)<4)return;tdrag.moved=true;snap()}
@@ -547,13 +558,16 @@ function onTrackMove(e){if(!tdrag)return;const dx=e.clientX-tdrag.x0;if(!tdrag.m
   else if(tdrag.trk==="#trkT"){const t=S.texts.find(t=>t.id===tdrag.id),len=o.end-o.start;
     if(tdrag.handle==="l")t.start=clamp(o.start+dt,0,o.end-0.2);else if(tdrag.handle==="r")t.end=Math.max(o.start+0.2,o.end+dt);else{t.start=Math.max(0,o.start+dt);t.end=t.start+len}
     renderTimeline();requestStill()}
+  else if(tdrag.trk==="#trkC"){const x=tdrag.ins;if(!x)return;const k=x.cap,d=dt*x.clip.speed;
+    if(tdrag.handle==="l")k.s=clamp(o.s+d,0,o.e-0.2);else if(tdrag.handle==="r")k.e=Math.max(o.s+0.2,o.e+d);else{k.s=Math.max(0,o.s+d);k.e=k.s+(o.e-o.s)}
+    renderTimeline();requestStill()}
   else{S.music.start=Math.max(0,o.start+dt);renderTimeline()}}
 function onTrackUp(e){if(!tdrag)return;
   if(tdrag.trk==="#trkV"&&tdrag.moved&&!tdrag.handle){const dx=e.clientX-tdrag.x0,c=S.clips.find(c=>c.id===tdrag.id);
     const center=tdrag.start+clipLen(c)/2+dx/S.pps;const rest=S.clips.filter(x=>x!==c);let t=0,idx=rest.length;
     for(let i=0;i<rest.length;i++){const l=clipLen(rest[i]);if(center<t+l/2){idx=i;break}t+=l}rest.splice(idx,0,c);S.clips=rest}
   const moved=tdrag.moved;tdrag=null;if(moved){renderTimeline();renderPanel();requestStill()}}
-for(const trk of ["#trkV","#trkT","#trkM"]){$(trk).addEventListener("pointermove",onTrackMove);$(trk).addEventListener("pointerup",onTrackUp);$(trk).addEventListener("pointercancel",onTrackUp)}
+for(const trk of ["#trkV","#trkT","#trkC","#trkM"]){$(trk).addEventListener("pointermove",onTrackMove);$(trk).addEventListener("pointerup",onTrackUp);$(trk).addEventListener("pointercancel",onTrackUp)}
 $("#tlScroll").addEventListener("wheel",e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();zoom(e.deltaY<0?1.25:.8)}},{passive:false});
 function zoom(f){S.pps=clamp(S.pps*f,4,500);renderTimeline();followPlayhead()}
 
@@ -564,6 +578,7 @@ function splitAt(){const h=clipAt(S.T);if(!h)return toast("Move the playhead ove
 function dupSel(){const c=selClip();if(c){snap();const i=S.clips.indexOf(c);const d={...JSON.parse(JSON.stringify(c)),id:uid()};S.clips.splice(i+1,0,d);S.sel={type:"clip",id:d.id};refreshAll();return}
   const t=selText();if(t){snap();const d={...t,id:uid(),start:t.end,end:t.end+(t.end-t.start)};S.texts.push(d);S.sel={type:"text",id:d.id};refreshAll();return}toast("Select a clip or text first")}
 function delSel(){if(S.sel.type==="clip"){snap();S.clips=S.clips.filter(c=>c.id!==S.sel.id)}else if(S.sel.type==="text"){snap();S.texts=S.texts.filter(t=>t.id!==S.sel.id)}
+  else if(S.sel.type==="cap"){snap();S.caps=S.caps.filter(k=>k.id!==S.sel.id)}
   else if(S.sel.type==="music"){snap();const mm=S.media.get(S.music.mediaId);mm&&mm.el.pause();S.music=null}else return toast("Select something to delete");
   S.sel={type:null,id:null};S.T=Math.min(S.T,total());refreshAll()}
 function addText(){snap();const t={id:uid(),text:"Your text",start:S.T,end:Math.min(Math.max(S.T+3,3),Math.max(total(),S.T+3)),x:.5,y:.5,size:.06,color:"#ffffff",font:"Anton",style:"shadow",box:"#111111"};
@@ -585,8 +600,9 @@ const ICON={
  transform:'<path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/>',
  volume:'<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/>',
  text:'<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+ captions:'<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 10.2a2.2 2.2 0 100 3.6M17 10.2a2.2 2.2 0 100 3.6"/>',
  music:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'};
-const TOOLS=[["canvas","Canvas"],["trim","Trim"],["speed","Speed"],["filter","Filter"],["adjust","Adjust"],["cutout","Cutout"],["transform","Rotate"],["volume","Volume"],["text","Text"],["music","Music"]];
+const TOOLS=[["canvas","Canvas"],["trim","Trim"],["speed","Speed"],["filter","Filter"],["adjust","Adjust"],["cutout","Cutout"],["transform","Rotate"],["volume","Volume"],["text","Text"],["captions","Captions"],["music","Music"]];
 const CLIP_TOOLS=["trim","speed","filter","adjust","cutout","transform","volume"];
 function renderRail(){$("#rail").innerHTML=TOOLS.map(([k,l])=>`<button class="tool${S.tool===k?" on":""}" data-tool="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>${l}</button>`).join("")}
 $("#rail").addEventListener("click",e=>{const b=e.target.closest(".tool");if(!b)return;S.tool=b.dataset.tool;
@@ -742,6 +758,7 @@ function renderPanel(){
       const ap=()=>{snap();t.start=Math.max(0,parseFloat($("#tS").value)||0);t.end=Math.max(t.start+.2,parseFloat($("#tE").value)||t.start+3);refreshAll()};$("#tS").onchange=ap;$("#tE").onchange=ap;
       $("#tDel").onclick=delSel}
     return}
+  case"captions":capPanel(P);return;
   case"music":{
     h=`<h2>Music</h2><p class="sub">One soundtrack under the whole video.</p>`;
     if(!S.music)h+=`<div class="grp"><button class="btn pri" id="mAdd">Choose audio file</button></div><p class="note">MP3, M4A, WAV or a video file (its sound is used). Clips sped up past ~4x sound best muted with music on top.</p>`;
@@ -756,6 +773,182 @@ function renderPanel(){
   }
 }
 function refreshAll(){fitPreview();renderRail();renderPanel();renderTimeline();updUndo();requestStill()}
+
+/* ---------- auto captions (offline whisper.cpp in Rust, see captions.rs) ----------
+   Captions are stored against the SOURCE time of a media file ({mediaId, s, e}), so they
+   follow trims, splits, reordering and speed changes; capInstances() maps them onto the timeline. */
+const CAP_LANGS=[["auto","Auto-detect"],["en","English"],["hi","हिंदी"],["hinglish","Hinglish (Roman)"]];
+const CAP_PRESETS=[["clean","Clean"],["bold","Bold yellow"],["box","Boxed"],["pop","Word pop"]];
+// win = (usWinAscent+usWinDescent)/unitsPerEm, asc = usWinAscent/unitsPerEm: libass sizes lines by these
+const CAP_FONTS={noto:{css:"Cutdeck Captions",label:"Noto Sans",win:1.906,asc:1.348},poppins:{css:"Cutdeck Poppins",label:"Poppins",win:1.762,asc:1.135}};
+// measured on an i5-8350U (4 cores): minutes of work per minute of speech
+const CAP_RT={fast:{en:0.55,hi:0.75},accurate:{en:2.4,hi:2.5}};
+let CAPST=null;const CAPJOB={running:false,phase:"",detail:"",fraction:0,eta:-1,heard:"",error:""};
+const glen=s=>String(s).replace(/\p{M}/gu,"").length;
+function capMax(){return aspectRatio()<0.9?26:42}
+/* line breaking: one line if it fits, else the most balanced 2-line split (prefers a break after punctuation) */
+function capLines(text,max){max=max||capMax();const words=String(text||"").trim().split(/\s+/).filter(Boolean);if(!words.length)return[];
+  if(glen(words.join(" "))<=max)return[words];let best=null;
+  for(let i=1;i<words.length;i++){const a=glen(words.slice(0,i).join(" ")),b=glen(words.slice(i).join(" "));if(a>max||b>max)continue;
+    const cost=Math.abs(a-b)-(/[,.!?;:।]$/.test(words[i-1])?8:0);if(!best||cost<best.cost)best={i,cost}}
+  if(best)return[words.slice(0,best.i),words.slice(best.i)];
+  const lines=[];let cur=[];for(const w of words){if(cur.length&&glen([...cur,w].join(" "))>max){lines.push(cur);cur=[w]}else cur.push(w)}if(cur.length)lines.push(cur);return lines}
+/* group whisper's word timestamps into captions: break on pauses, sentence ends, 2 lines or ~6 s */
+function buildCaptions(words,max){const out=[],lim=max*2;let cur=null;
+  const txt=c=>c.words.map(x=>x.w).join(" ");const flush=()=>{if(cur&&cur.words.length)out.push(cur);cur=null};
+  for(const w of words){if(cur){const last=cur.words[cur.words.length-1],len=glen(txt(cur));
+      if(w.t0-last.t1>0.7||len+1+glen(w.w)>lim||w.t1-cur.words[0].t0>6.5||(/[.!?।]$/.test(last.w)&&len>=12)||(/[,;:]$/.test(last.w)&&len>=lim*0.6))flush()}
+    if(!cur)cur={words:[]};cur.words.push({t0:w.t0,t1:w.t1,w:w.w})}
+  flush();
+  return out.map((c,i)=>{const nx=out[i+1],s=c.words[0].t0;let e=c.words[c.words.length-1].t1+0.25;if(e-s<0.8)e=s+0.8;if(nx)e=Math.min(e,nx.words[0].t0-0.02);
+    return{id:uid(),s,e:Math.max(e,s+0.2),text:txt(c),words:c.words}})}
+function capInstances(){const out=[];let t=0;
+  for(const c of S.clips){const l=clipLen(c);
+    for(const k of S.caps){if(k.mediaId!==c.mediaId)continue;const s=Math.max(k.s,c.inP),e=Math.min(k.e,c.outP);if(e-s<0.04)continue;
+      out.push({cap:k,clip:c,start:t,T0:t+(s-c.inP)/c.speed,T1:t+(e-c.inP)/c.speed})}
+    t+=l}
+  return out.sort((a,b)=>a.T0-b.T0)}
+const toT=(x,src)=>x.start+(src-x.clip.inP)/x.clip.speed, toSrc=(x,T)=>x.clip.inP+(T-x.start)*x.clip.speed;
+function capAt(T,list){for(const x of list||capInstances())if(T>=x.T0&&T<x.T1)return x;return null}
+function selCap(){if(S.sel.type!=="cap")return null;const l=capInstances();return l.find(x=>x.cap.id===S.sel.id&&x.clip.id===S.sel.clip)||l.find(x=>x.cap.id===S.sel.id)||null}
+function capGeom(W,H){const st=S.capStyle,f=CAP_FONTS[st.font]||CAP_FONTS.noto,em=Math.min(W,H)*(W<H?0.052:0.05)*st.size;
+  return{f,em,margin:st.pos==="middle"?0:H*(st.pos==="bottom"&&W<H?0.13:0.08)}}
+const CAP_LOOK={clean:{fill:"#ffffff",line:"#000000",la:.55,ow:.06,sh:.05},bold:{fill:"#ffd23f",line:"#000000",la:1,ow:.11,sh:0},
+  box:{fill:"#ffffff",line:"#000000",la:.72,ow:0,sh:0,box:.26},pop:{fill:"#ffffff",line:"#000000",la:1,ow:.1,sh:0,hi:"#ffd23f"}};
+/* which word is being spoken (Word pop), or -1 */
+function capWordIdx(x,T,n){const w=x.cap.words;if(S.capStyle.preset!=="pop"||!w||w.length!==n)return-1;let k=-1;for(let i=0;i<w.length;i++)if(toT(x,w[i].t0)<=T+0.02)k=i;return k}
+function capFit(ctx,g,lines,W){ctx.font=`${g.em}px "${g.f.css}"`;const mw=Math.max(...lines.map(l=>ctx.measureText(l.join(" ")).width));return mw>W*0.92?g.em*W*0.92/mw:g.em}
+function drawCaption(ctx,W,H,x,T){const st=S.capStyle,g=capGeom(W,H),lines=capLines(x.cap.text);if(!lines.length)return null;
+  const L=CAP_LOOK[st.preset]||CAP_LOOK.clean;ctx.save();const em=capFit(ctx,g,lines,W);ctx.font=`${em}px "${g.f.css}"`;ctx.textBaseline="alphabetic";ctx.textAlign="left";ctx.lineJoin="round";
+  const lh=em*g.f.win,n=lines.length,top=st.pos==="top"?g.margin:st.pos==="middle"?(H-n*lh)/2:H-g.margin-n*lh;
+  const hi=capWordIdx(x,T,lines.flat().length),sp=ctx.measureText(" ").width;let wi=0,x0min=W,x1max=0;
+  const[r,gg,b]=hexRgb(L.line),lc=`rgba(${r},${gg},${b},${L.la})`;
+  lines.forEach((ln,i)=>{const s=ln.join(" "),w=ctx.measureText(s).width,lx=(W-w)/2,base=top+i*lh+em*g.f.asc;x0min=Math.min(x0min,lx);x1max=Math.max(x1max,lx+w);
+    if(L.box){const p=em*L.box;ctx.fillStyle=lc;ctx.fillRect(lx-p,base-em*g.f.asc-p,w+2*p,lh+2*p)}
+    if(L.ow){ctx.save();if(L.sh){ctx.shadowColor="rgba(0,0,0,.55)";ctx.shadowBlur=em*.18;ctx.shadowOffsetY=em*L.sh}ctx.strokeStyle=lc;ctx.lineWidth=em*L.ow*2;ctx.strokeText(s,lx,base);ctx.restore()}
+    let cx=lx;for(const word of ln){ctx.fillStyle=wi===hi?L.hi:L.fill;ctx.fillText(word,cx,base);cx+=ctx.measureText(word).width+sp;wi++}});
+  ctx.restore();return{x0:x0min/W,x1:x1max/W,y0:top/H,y1:(top+n*lh)/H}}
+/* ---- ASS for burning in with FFmpeg/libass (same fonts, sizes and line breaks as the preview) ---- */
+function assCol(hex,a){const[r,g,b]=hexRgb(hex),h=v=>v.toString(16).padStart(2,"0").toUpperCase();return`&H${h(Math.round((1-(a??1))*255))}${h(b)}${h(g)}${h(r)}`}
+function assTime(t){const cs=Math.round(Math.max(0,t)*100),p=v=>String(v).padStart(2,"0");return`${Math.floor(cs/360000)}:${p(Math.floor(cs/6000)%60)}:${p(Math.floor(cs/100)%60)}.${p(cs%100)}`}
+const assEsc=s=>String(s).replace(/[{}\\]/g,"");
+function buildAss(W,H){const st=S.capStyle,g=capGeom(W,H),L=CAP_LOOK[st.preset]||CAP_LOOK.clean,fs=g.em*g.f.win;
+  const al=st.pos==="top"?8:st.pos==="middle"?5:2,mv=Math.round(g.margin);
+  const style=L.box?`Style: Cap,${g.f.css},${fs.toFixed(1)},${assCol(L.fill)},${assCol(L.fill)},${assCol(L.line,L.la)},${assCol(L.line,L.la)},0,0,0,0,100,100,0,0,3,${(g.em*L.box).toFixed(1)},0,${al},20,20,${mv},1`
+    :`Style: Cap,${g.f.css},${fs.toFixed(1)},${assCol(L.fill)},${assCol(L.fill)},${assCol(L.line,L.la)},${assCol("#000000",.55)},0,0,0,0,100,100,0,0,1,${(g.em*L.ow).toFixed(1)},${(g.em*L.sh).toFixed(1)},${al},20,20,${mv},1`;
+  const cv=document.createElement("canvas").getContext("2d"),ev=[];
+  for(const x of capInstances()){const lines=capLines(x.cap.text);if(!lines.length)continue;const em=capFit(cv,g,lines,W);
+    const pre=(L.sh?"{\\blur3}":"")+(em<g.em-0.5?`{\\fs${(em*g.f.win).toFixed(1)}}`:"");
+    const n=lines.flat().length,w=x.cap.words;
+    if(st.preset==="pop"&&w&&w.length===n){for(let i=0;i<n;i++){const a=i?Math.max(x.T0,toT(x,w[i].t0)):x.T0,b=i<n-1?Math.min(x.T1,toT(x,w[i+1].t0)):x.T1;if(b-a<0.01)continue;let k=0;
+        const txt=lines.map(ln=>ln.map(word=>k++===i?`{\\c${assCol(L.hi)}}${assEsc(word)}{\\c${assCol(L.fill)}}`:assEsc(word)).join(" ")).join("\\N");
+        ev.push(`Dialogue: 0,${assTime(a)},${assTime(b)},Cap,,0,0,0,,${pre}${txt}`)}}
+    else ev.push(`Dialogue: 0,${assTime(x.T0)},${assTime(x.T1)},Cap,,0,0,0,,${pre}${lines.map(ln=>assEsc(ln.join(" "))).join("\\N")}`)}
+  if(!ev.length)return"";
+  return`[Script Info]\nScriptType: v4.00+\nPlayResX: ${W}\nPlayResY: ${H}\nWrapStyle: 2\nScaledBorderAndShadow: yes\nYCbCr Matrix: None\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n${style}\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${ev.join("\n")}\n`}
+function srtTime(t){const ms=Math.round(Math.max(0,t)*1000),p=(v,n=2)=>String(v).padStart(n,"0");return`${p(Math.floor(ms/3600000))}:${p(Math.floor(ms/60000)%60)}:${p(Math.floor(ms/1000)%60)},${p(ms%1000,3)}`}
+function srtText(){return capInstances().map((x,i)=>`${i+1}\n${srtTime(x.T0)} --> ${srtTime(x.T1)}\n${capLines(x.cap.text).map(l=>l.join(" ")).join("\n")}\n`).join("\n")}
+async function exportSrt(){if(!S.caps.length)return toast("Generate captions first");const p=await invoke("pick_save",{name:projName()+".srt",ext:"srt"});if(!p)return;
+  try{await invoke("write_text",{path:p,text:srtText()});toast("Saved "+baseName(p))}catch(e){toast("Could not save: "+e)}}
+/* ---- Hinglish: Devanagari -> Roman, with Hindi schwa deletion ---- */
+const HG={c:{"क":"k","ख":"kh","ग":"g","घ":"gh","ङ":"n","च":"ch","छ":"chh","ज":"j","झ":"jh","ञ":"n","ट":"t","ठ":"th","ड":"d","ढ":"dh","ण":"n","त":"t","थ":"th","द":"d","ध":"dh","न":"n","प":"p","फ":"ph","ब":"b","भ":"bh","म":"m","य":"y","र":"r","ल":"l","ळ":"l","व":"v","श":"sh","ष":"sh","स":"s","ह":"h"},
+  nk:{"क":"q","ख":"kh","ग":"g","ज":"z","फ":"f","ड":"r","ढ":"rh"},
+  v:{"अ":"a","आ":"aa","इ":"i","ई":"ee","उ":"u","ऊ":"oo","ऋ":"ri","ए":"e","ऐ":"ai","ओ":"o","औ":"au","ऑ":"o","ऍ":"e"},
+  m:{"ा":"aa","ि":"i","ी":"ee","ु":"u","ू":"oo","ृ":"ri","े":"e","ै":"ai","ो":"o","ौ":"au","ॉ":"o","ॅ":"e"},
+  ex:{"है":"hai","हैं":"hain","में":"mein","मैं":"main","नहीं":"nahi","क्या":"kya","कि":"ki","की":"ki","के":"ke","का":"ka","को":"ko","से":"se","और":"aur","भी":"bhi","तो":"toh","ही":"hi","हो":"ho","था":"tha","थी":"thi","थे":"the","यह":"yeh","वह":"woh","ये":"ye","वो":"wo","आप":"aap","हम":"hum","तुम":"tum","मुझे":"mujhe","कुछ":"kuch","बहुत":"bahut","अब":"ab","जब":"jab","सब":"sab","कर":"kar","पर":"par","एक":"ek","जी":"ji","हाँ":"haan","हां":"haan","ना":"na","न":"na","या":"ya","लिए":"liye","गया":"gaya","रहा":"raha","रही":"rahi","दिया":"diya","किया":"kiya","इस":"is","उस":"us","यहाँ":"yahan","वहाँ":"wahan","कैसे":"kaise","क्यों":"kyon","अपना":"apna","अपने":"apne","धन्यवाद":"dhanyavaad","दोस्तों":"doston"}};
+function hgRun(run){const ex=HG.ex[run];if(ex)return ex;const ch=[...run.normalize("NFD")],u=[];
+  for(let i=0;i<ch.length;i++){const c=ch[i];
+    if(HG.c[c]){let k=HG.c[c];if(ch[i+1]==="\u093c"){k=HG.nk[c]||k;i++}const x={c:k,v:null};const n=ch[i+1];
+      if(HG.m[n]){x.v=HG.m[n];i++}else if(n==="\u094d"){x.v="";i++}u.push(x)}
+    else if(HG.v[c])u.push({c:"",v:HG.v[c],iv:true});
+    else if(c==="\u0902"||c==="\u0901"){if(u.length)u[u.length-1].nas=true}
+    else if(c==="\u0903"){if(u.length)u[u.length-1].h=true}
+    else if(c==="\u093c"){}
+    else if(c>="\u0966"&&c<="\u096f")u.push({c:String(c.charCodeAt(0)-0x966),v:"",raw:true});
+    else u.push({c,v:"",raw:true})}
+  const hasV=x=>x.v===null||x.v!=="";
+  if(u.length>1&&u[u.length-1].v===null&&!u[u.length-1].nas)u[u.length-1].v="";
+  for(let i=u.length-2;i>=1;i--)if(u[i].v===null&&!u[i].nas&&u[i+1].c&&!u[i+1].iv&&hasV(u[i+1])&&hasV(u[i-1]))u[i].v="";
+  const vowels=u.filter(hasV).length;let s="";
+  u.forEach((x,i)=>{let v=x.v===null?"a":x.v;if((!x.iv||i>0)&&vowels>1){if(v==="aa"&&!x.iv)v="a";else if(v==="ee")v="i";else if(v==="oo")v="u"}if(x.iv&&i>0&&/^e/.test(v)&&/i$/.test(s))v="y"+v;
+    if(!x.iv&&i===u.length-1&&v==="ee")v="i";s+=x.c+v;if(x.nas){const nx=u[i+1];s+=nx&&/^[pbm]/.test(nx.c)?"m":"n"}if(x.h)s+="h"});
+  return s}
+function hinglish(w){return w.replace(/[\u0900-\u0963\u0966-\u097f]+/g,hgRun).replace(/[।॥]/g,".")}
+function hinglishWords(words){let cap=true;return words.map(w=>{let t=hinglish(w.w);if(cap&&/^[a-z]/.test(t))t=t[0].toUpperCase()+t.slice(1);cap=/[.!?]$/.test(t);return{...w,w:t}})}
+/* ---- generate ---- */
+function capJobs(){const by=new Map();
+  for(const c of S.clips){const m=S.media.get(c.mediaId);if(!m||m.kind!=="video"||!m.path)continue;if(!by.has(m.id))by.set(m.id,[]);by.get(m.id).push([Math.max(0,c.inP-0.3),Math.min(m.dur,c.outP+0.3)])}
+  const jobs=[];for(const[id,rs]of by){rs.sort((a,b)=>a[0]-b[0]);const mg=[];for(const r of rs){const l=mg[mg.length-1];if(l&&r[0]<=l[1]+1)l[1]=Math.max(l[1],r[1]);else mg.push([...r])}
+    const m=S.media.get(id);for(const[s,e]of mg)jobs.push({mediaId:id,path:m.path,start:s,end:e})}
+  return jobs}
+async function capStatus(){try{CAPST=await invoke("captions_status")}catch(e){CAPST=null}return CAPST}
+function capHint(){const st=S.capStyle,secs=capJobs().reduce((a,j)=>a+j.end-j.start,0),rt=(CAP_RT[st.quality]||CAP_RT.accurate)[st.lang==="en"?"en":"hi"];
+  const m=CAPST&&CAPST.models.find(x=>x.key===st.quality),mins=Math.max(1,Math.round(secs*rt/60));
+  let h=st.quality==="fast"?"Quick, great for clear English. Hindi has more spelling mistakes.":"Best for Hindi and mixed Hindi + English.";
+  if(secs)h+=` About ${mins} min for ${fmt(secs)} of audio.`;if(m&&!m.ready)h+=` First use downloads ${Math.round(m.size/1e6)} MB once.`;return h}
+async function genCaptions(){if(CAPJOB.running)return;const st=S.capStyle,jobs=capJobs();if(!jobs.length)return toast("Import a video with sound first");
+  pause();Object.assign(CAPJOB,{running:true,phase:"start",detail:"",fraction:0,eta:-1,heard:"",error:""});renderPanel();
+  let un=null;try{un=await listen("captions-progress",e=>{const p=e.payload;if(p.phase==="words"){CAPJOB.heard=p.text}else Object.assign(CAPJOB,{phase:p.phase,detail:p.detail,fraction:p.fraction,eta:p.eta});capProgressUi()});
+    const s=await capStatus();if(!s||!s.engine)throw new Error("The caption engine is missing. Reinstall Cutdeck.");
+    const m=s.models.find(x=>x.key===st.quality);if(!m.ready){CAPJOB.phase="download";capProgressUi();await invoke("captions_download",{quality:st.quality});await capStatus()}
+    const res=await invoke("captions_run",{jobs:jobs.map(({path,start,end})=>({path,start,end})),lang:st.lang,quality:st.quality});
+    snap();let n=0,langs=new Set();
+    jobs.forEach((j,i)=>{const r=res[i];if(!r)return;if(r.language)langs.add(r.language);
+      const words=st.lang==="hinglish"?hinglishWords(r.words):r.words;const caps=buildCaptions(words,capMax()).map(c=>({...c,mediaId:j.mediaId}));
+      S.caps=S.caps.filter(k=>!(k.mediaId===j.mediaId&&k.e>j.start&&k.s<j.end)).concat(caps);n+=caps.length});
+    S.caps.sort((a,b)=>a.s-b.s);st.detected=[...langs].join(", ");
+    if(!n)toast("No speech found in these clips");else toast(`${n} caption${n>1?"s":""} added${st.detected?" · "+(st.detected==="hi"?"Hindi":st.detected==="en"?"English":st.detected):""}`);
+    const f=capInstances()[0];if(f){S.sel={type:"cap",id:f.cap.id,clip:f.clip.id}}
+  }catch(e){const msg=(e&&e.message)||String(e);if(msg!=="cancelled")CAPJOB.error=msg;else toast("Captions stopped")}
+  finally{CAPJOB.running=false;if(un)un();renderPanel();renderTimeline();requestStill()}}
+function capProgressUi(){const b=$("#capBar"),t=$("#capTxt"),h=$("#capHeard");if(!b)return;const J=CAPJOB;
+  const ph={start:"Starting",download:"Downloading the speech model",audio:"Reading the sound",detect:"Detecting the language",transcribe:"Listening and writing",done:"Finishing"}[J.phase]||"Working";
+  b.style.width=(clamp(J.fraction,0,1)*100).toFixed(1)+"%";t.textContent=`${ph}${J.detail?" · "+J.detail:""} · ${Math.round(J.fraction*100)}%${J.eta>0?" · "+eta(J.eta):""}`;if(h)h.textContent=J.heard?"“…"+J.heard+"”":""}
+function capCut(x,T){const k=x.cap,cut=toSrc(x,T);if(cut<=k.s+0.1||cut>=k.e-0.1)return toast("Move the playhead inside the caption to split it");snap();
+  const tok=k.text.trim().split(/\s+/),w=k.words&&k.words.length===tok.length?k.words:null;let i=w?w.findIndex(q=>q.t0>=cut):Math.round(tok.length*(cut-k.s)/(k.e-k.s));
+  if(i<1||i>=tok.length)i=Math.max(1,Math.min(tok.length-1,Math.round(tok.length/2)));
+  const b={id:uid(),mediaId:k.mediaId,s:cut,e:k.e,text:tok.slice(i).join(" "),words:w?w.slice(i):null};k.e=cut;k.text=tok.slice(0,i).join(" ");if(w)k.words=w.slice(0,i);
+  S.caps.push(b);S.sel={type:"cap",id:b.id,clip:x.clip.id};refreshAll()}
+function capMerge(x){const l=capInstances(),i=l.findIndex(y=>y.cap===x.cap&&y.clip===x.clip),n=l.slice(i+1).find(y=>y.cap.mediaId===x.cap.mediaId&&y.cap!==x.cap);if(!n)return toast("No next caption to merge with");
+  snap();const k=x.cap,o=n.cap;k.s=Math.min(k.s,o.s);k.e=Math.max(k.e,o.e);k.text=(k.text.trim()+" "+o.text.trim()).trim();k.words=k.words&&o.words?k.words.concat(o.words):null;S.caps=S.caps.filter(c=>c!==o);refreshAll()}
+const fmt2=t=>{t=Math.max(0,t||0);const m=Math.floor(t/60);return String(m).padStart(2,"0")+":"+(t-m*60).toFixed(2).padStart(5,"0")};
+const parseTc=v=>{const p=String(v).trim().split(":").map(Number);if(p.some(isNaN))return null;return p.reduce((a,b)=>a*60+b,0)};
+function capPanel(P){const st=S.capStyle,x=selCap(),list=capInstances(),J=CAPJOB,ready=q=>CAPST&&CAPST.models.find(m=>m.key===q)?.ready;
+  let h=`<h2>Auto captions</h2><p class="sub">Writes captions from the speech in your clips, timed to each word. Runs on this computer; nothing is uploaded.</p>
+  <div class="grp"><div class="lbl">Language</div><div class="chips">${CAP_LANGS.map(([v,l])=>chip(st.lang===v,`data-cl="${v}"`+(J.running?" disabled":""),l)).join("")}</div></div>
+  <div class="grp"><div class="lbl">Quality</div><div class="chips">${[["fast","Fast"],["accurate","Accurate"]].map(([v,l])=>chip(st.quality===v,`data-cqq="${v}"`+(J.running?" disabled":""),l+(ready(v)?" ✓":""))).join("")}</div><div class="hint" style="line-height:1.45">${esc(capHint())}</div></div>`;
+  if(J.running)h+=`<div class="grp"><div class="bar"><i id="capBar"></i></div><div class="tc" id="capTxt" style="font-size:12px">Starting</div><div class="hint" id="capHeard" style="font-family:'Cutdeck Captions',var(--f-ui);line-height:1.4"></div><button class="btn" id="capStop">Cancel</button></div>`;
+  else h+=`<div class="grp"><button class="btn pri" id="capGo" ${capJobs().length?"":"disabled"}>${S.caps.length?"Regenerate captions":"Generate captions"}</button>${capJobs().length?"":`<span class="hint">Import a video with speech first.</span>`}</div>`;
+  if(J.error)h+=`<pre class="note" style="white-space:pre-wrap;color:var(--danger);font-size:11px;max-height:140px;overflow:auto">${esc(J.error)}</pre>`;
+  if(S.caps.length){
+    h+=`<div class="grp"><div class="lbl">Style</div><div class="chips">${CAP_PRESETS.map(([v,l])=>chip(st.preset===v,`data-cp="${v}"`,l)).join("")}</div>
+      <div class="chips">${Object.entries(CAP_FONTS).map(([v,f])=>chip(st.font===v,`data-cf="${v}" style="font-family:'${f.css}'"`,f.label)).join("")}</div>
+      <div class="chips">${[["bottom","Bottom"],["middle","Middle"],["top","Top"]].map(([v,l])=>chip(st.pos===v,`data-cpos="${v}"`,l)).join("")}</div></div>
+      ${slider("capSz","Size",.6,1.6,.05,st.size,Math.round(st.size*100)+"%")}`;
+    if(x)h+=`<div class="grp"><div class="lbl"><label for="capText">Selected caption</label><output>${fmt(x.T0)}</output></div><textarea class="num" id="capText" style="font-family:'Cutdeck Captions',var(--f-ui)">${esc(x.cap.text)}</textarea>
+      <div class="row2"><div class="grp" style="margin:0"><div class="lbl"><label for="capS">Start</label></div><input class="num" id="capS" value="${fmt2(x.T0)}"></div><div class="grp" style="margin:0"><div class="lbl"><label for="capE">End</label></div><input class="num" id="capE" value="${fmt2(x.T1)}"></div></div>
+      <div class="chips"><button class="btn" id="capSplit" title="Split at the playhead">Split</button><button class="btn" id="capMerge">Merge next</button><button class="btn" id="capDel">Delete</button></div></div>`;
+    h+=`<div class="grp"><div class="lbl">${list.length} caption${list.length===1?"":"s"} on the timeline</div><div class="tlist" id="capList" style="max-height:260px;overflow:auto">${list.map(y=>`<button class="titem${x&&x.cap===y.cap&&x.clip===y.clip?" on":""}" data-cid="${y.cap.id}" data-clip="${y.clip.id}"><span class="tc" style="flex:none">${fmt(y.T0)}</span><span style="font-family:'Cutdeck Captions',var(--f-ui)">${esc(y.cap.text)}</span></button>`).join("")}</div></div>
+      <div class="chips"><button class="btn" id="capSrt">Export .srt</button><button class="btn" id="capClear">Delete all</button></div>
+      <p class="note">Captions follow your trims and cuts. Click one on the timeline or preview to edit it; drag its edges to retime. They're burned into the exported video (turn that off in Export).</p>`}
+  P.innerHTML=h;capProgressUi();
+  P.querySelectorAll("[data-cl]").forEach(b=>b.onclick=()=>{st.lang=b.dataset.cl;if(st.lang==="hi"||st.lang==="hinglish")st.quality="accurate";markDirty();renderPanel()});
+  P.querySelectorAll("[data-cqq]").forEach(b=>b.onclick=()=>{st.quality=b.dataset.cqq;markDirty();renderPanel()});
+  if($("#capGo"))$("#capGo").onclick=async()=>{if(S.caps.length&&!(await ask("Replace captions?","New captions replace the current ones for these clips. Your edits to them will be lost (Undo brings them back).","Replace","Cancel")))return;genCaptions()};
+  if($("#capStop"))$("#capStop").onclick=()=>{invoke("captions_cancel").catch(()=>{});$("#capTxt").textContent="Stopping…"};
+  P.querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{snap();st.preset=b.dataset.cp;renderPanel();requestStill()});
+  P.querySelectorAll("[data-cf]").forEach(b=>b.onclick=()=>{snap();st.font=b.dataset.cf;renderPanel();requestStill()});
+  P.querySelectorAll("[data-cpos]").forEach(b=>b.onclick=()=>{snap();st.pos=b.dataset.cpos;renderPanel();requestStill()});
+  bindSlider("capSz",v=>st.size=v,v=>Math.round(v*100)+"%");
+  P.querySelectorAll("[data-cid]").forEach(b=>b.onclick=()=>{S.sel={type:"cap",id:b.dataset.cid,clip:b.dataset.clip};const y=selCap();if(y)seek(y.T0+0.001);renderPanel();renderTimeline();requestStill()});
+  if(x){$("#capText").oninput=e=>{beginEdit();x.cap.text=e.target.value.replace(/\n/g," ");requestStill();renderTimelineSoon()};$("#capText").onchange=endEdit;$("#capText").onblur=()=>{endEdit();renderPanel()};
+    const setT=(which,v)=>{const T=parseTc(v);if(T==null)return renderPanel();snap();const s=toSrc(x,T);if(which==="s")x.cap.s=clamp(s,0,x.cap.e-0.1);else x.cap.e=Math.max(x.cap.s+0.1,s);refreshAll()};
+    $("#capS").onchange=e=>setT("s",e.target.value);$("#capE").onchange=e=>setT("e",e.target.value);
+    $("#capSplit").onclick=()=>capCut(x,S.T>x.T0&&S.T<x.T1?S.T:(x.T0+x.T1)/2);$("#capMerge").onclick=()=>capMerge(x);$("#capDel").onclick=delSel;
+    const on=$("#capList .titem.on");if(on)on.scrollIntoView({block:"nearest"})}
+  if($("#capSrt"))$("#capSrt").onclick=exportSrt;
+  if($("#capClear"))$("#capClear").onclick=async()=>{if(!(await ask("Delete all captions?","All captions are removed from this project.","Delete","Cancel")))return;snap();S.caps=[];S.sel={type:null,id:null};refreshAll()};
+  if(!CAPST)capStatus().then(()=>{if(S.tool==="captions"&&!CAPJOB.running)renderPanel()})}
 
 /* ---------- save helpers ---------- */
 /* ---------- desktop bridge ---------- */
@@ -778,7 +971,7 @@ function updTitle(){const n=projName();document.title=(dirty?"• ":"")+n+" — 
 function projectJson(){
   const used=new Set();S.clips.forEach(c=>{used.add(c.mediaId);if(c.bgImageId)used.add(c.bgImageId)});if(S.music)used.add(S.music.mediaId);
   const media=[...used].map(id=>S.media.get(id)).filter(m=>m&&m.path).map(m=>({id:m.id,kind:m.kind,path:m.path}));
-  return JSON.stringify({app:"cutdeck",version:1,canvas:S.canvas,media,clips:S.clips.filter(c=>S.media.get(c.mediaId)?.path),texts:S.texts.filter(t=>!t.sample),music:S.music},null,1)}
+  return JSON.stringify({app:"cutdeck",version:1,canvas:S.canvas,media,clips:S.clips.filter(c=>S.media.get(c.mediaId)?.path),texts:S.texts.filter(t=>!t.sample),music:S.music,captions:S.caps.filter(k=>S.media.get(k.mediaId)?.path),captionStyle:S.capStyle},null,1)}
 async function saveProject(as){
   if(!S.clips.some(c=>S.media.get(c.mediaId)?.path))return toast("Import a clip before saving a project");
   let p=projectPath;if(as||!p){p=await invoke("pick_save",{name:projectPath?baseName(projectPath):"My video.cutdeck",ext:"cutdeck"});if(!p)return false}
@@ -796,10 +989,11 @@ async function applyProject(o){
   for(const md of o.media||[]){if(!(await invoke("path_exists",{path:md.path}))){missing.push(baseName(md.path));continue}
     try{md.kind==="audio"?await loadAudio(md.path,md.id):await addPath(md.path,md.id)}catch(e){missing.push(baseName(md.path))}}
   S.clips=(o.clips||[]).filter(c=>S.media.has(c.mediaId));S.texts=o.texts||[];S.music=o.music&&S.media.has(o.music.mediaId)?o.music:null;if(o.canvas)S.canvas=o.canvas;
+  S.caps=(o.captions||[]).filter(k=>S.media.has(k.mediaId));S.capStyle={...CAP_DEFAULT,...(o.captionStyle||{})};
   S.clips.forEach(c=>{if(c.bgImageId&&!S.media.has(c.bgImageId))c.bgImageId=null;if(c.bgMode==="person")Seg.load().catch(()=>{})});
   hist.length=0;fut.length=0;S.T=0;S.sel=S.clips[0]?{type:"clip",id:S.clips[0].id}:{type:null,id:null};dirty=false;return missing}
 async function newProject(){if(!(await guardUnsaved()))return;pause();S.clips=[];S.texts=[];if(S.music){const mm=S.media.get(S.music.mediaId);mm&&mm.el.pause()}S.music=null;
-  S.canvas={aspect:"9:16",bg:"blur",color:"#14181f"};hist.length=0;fut.length=0;S.T=0;S.sel={type:null,id:null};projectPath=null;dirty=false;draftId=null;draftName=null;draftSaved="";$("#draftChip").hidden=true;updTitle();refreshAll()}
+  S.canvas={aspect:"9:16",bg:"blur",color:"#14181f"};S.caps=[];S.capStyle={...CAP_DEFAULT};hist.length=0;fut.length=0;S.T=0;S.sel={type:null,id:null};projectPath=null;dirty=false;draftId=null;draftName=null;draftSaved="";$("#draftChip").hidden=true;updTitle();refreshAll()}
 
 /* ---------- drafts (autosave to app data, see save_draft in lib.rs) ---------- */
 let draftId=null,draftName=null,draftSaved="",draftTimer=null,draftBusy=null;
@@ -844,7 +1038,7 @@ async function saveCutoutPng(c,m){toast("Cutting out at full resolution…");try
   const blob=await new Promise(r=>src.toBlob(r,"image/png"));await saveBlob(blob,m.name.replace(/\.[^.]+$/,"")+"-cutout.png")}catch(e){toast("Cutout failed: "+(e.message||e))}}
 
 /* ---------- export (FFmpeg in Rust) ---------- */
-const EX={res:1080,fps:30,q:"high",enc:"auto",turbo:true,cancel:false,segId:null,running:false};
+const EX={res:1080,fps:30,q:"high",enc:"auto",turbo:true,caps:true,cancel:false,segId:null,running:false};
 let ENV=null;
 const ENC_LABEL={h264_nvenc:"NVIDIA GPU",h264_qsv:"Intel GPU",h264_amf:"AMD GPU",h264_videotoolbox:"Apple media engine",libx264:"CPU"};
 async function loadEnv(){try{ENV=await invoke("env_status")}catch(e){ENV={ok:false,message:String(e)}}updEnvChip();
@@ -862,6 +1056,7 @@ function exportSheet(){
   <div class="grp"><div class="lbl">Frame rate</div><div class="chips">${[24,30,60].map(v=>chip(EX.fps===v,`data-fps="${v}"`,v+" fps")).join("")}</div></div>
   <div class="grp"><div class="lbl">Quality</div><div class="chips">${chip(EX.q==="std",'data-q="std"',"Smaller file")}${chip(EX.q==="high",'data-q="high"',"High")}</div></div>
   <div class="grp"><div class="lbl">Encoder</div><div class="chips">${chip(EX.enc==="auto",'data-enc="auto"',"Fastest"+(ENV&&ENV.ok?" · "+(ENC_LABEL[ENV.encoder]||ENV.encoder):""))}${chip(EX.enc==="software",'data-enc="software"',"CPU (x264)")}</div></div>
+  ${S.caps.length?`<div class="grp"><label class="status"><input type="checkbox" id="exCaps" ${EX.caps?"checked":""}> Burn in captions (${capInstances().length})</label><button class="btn" id="exSrt" style="align-self:flex-start">Also save captions as .srt</button></div>`:""}
   ${fast?`<div class="grp"><label class="status"><input type="checkbox" id="exTurbo" ${EX.turbo?"checked":""}> Turbo for 50x and above (reads only keyframes, many times faster)</label></div>`:""}
   <p class="note">${W}×${H} · ${fmt(total())} long · MP4 H.264 + AAC${persons?` · AI cutout on ${persons} clip${persons>1?"s":""}`:""}</p>
   <div class="chips" style="justify-content:flex-end"><button class="btn" id="exClose">Cancel</button><button class="btn pri" id="exGo" ${ENV&&ENV.ok&&total()>0&&!hasSample?"":"disabled"}>Choose file & export</button></div>`;
@@ -871,6 +1066,7 @@ function exportSheet(){
   sh.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{EX.q=b.dataset.q;exportSheet()});
   sh.querySelectorAll("[data-enc]").forEach(b=>b.onclick=()=>{EX.enc=b.dataset.enc;exportSheet()});
   if($("#exTurbo"))$("#exTurbo").onchange=e=>EX.turbo=e.target.checked;
+  if($("#exCaps"))$("#exCaps").onchange=e=>EX.caps=e.target.checked;if($("#exSrt"))$("#exSrt").onclick=exportSrt;
   $("#exClose").onclick=()=>$("#mExport").hidden=true;$("#exGo").onclick=runExport}
 /* Photos whose EXIF orientation FFmpeg may not apply are re-encoded upright as the editor shows them. */
 async function exportPath(m){if(!m||m.kind!=="image"||!m.exif)return m&&m.path;
@@ -894,7 +1090,9 @@ async function runExport(){
         filter:c.filter,adj:c.adj,bgMode:c.bgMode,chroma:c.chroma,tol:c.tol,bgReplace:c.bgReplace,bgColor:c.bgColor,bgImagePath:bgm?await exportPath(bgm):null,trans:c.trans,cutQuality:c.cutQuality||"fast"})}
     const texts=S.texts.filter(t=>t.end>t.start&&!t.sample).map(t=>{const cv=document.createElement("canvas");cv.width=W;cv.height=H;drawText(cv.getContext("2d"),W,H,t);return{png:cv.toDataURL("image/png").split(",")[1],start:t.start,end:t.end}});
     const mu=S.music&&S.media.get(S.music.mediaId);
-    const project={width:W,height:H,fps,quality:EX.q,encoder:EX.enc,turbo:EX.turbo,canvas:S.canvas,clips,texts,music:mu?{path:mu.path,start:S.music.start,offset:S.music.offset,vol:S.music.vol,fade:S.music.fade}:null};
+    if(EX.caps&&S.caps.length)try{await Promise.all(Object.values(CAP_FONTS).map(f=>document.fonts.load(`40px "${f.css}"`)))}catch(e){}
+    const captionsAss=EX.caps&&S.caps.length?buildAss(W,H):"";
+    const project={width:W,height:H,fps,quality:EX.q,encoder:EX.enc,turbo:EX.turbo,canvas:S.canvas,clips,texts,captionsAss,music:mu?{path:mu.path,start:S.music.start,offset:S.music.offset,vol:S.music.vol,fade:S.music.fade}:null};
     setP(0,persons.length?"Removing backgrounds":"Starting FFmpeg");
     unlisten=await listen("export-progress",e=>{const p=e.payload;if(EX.cancel)return;
       if(p.phase==="cutout")setP(p.fraction,`Removing background · ${p.detail} · ${p.speed} · ${eta(p.eta)}`);
@@ -914,7 +1112,7 @@ async function runExport(){
 $("#bImport").onclick=async()=>{const ps=await invoke("pick_files",{kind:"media"});if(ps.length)importFiles(ps)};
 $("#bAddMusic").onclick=async()=>{const[p]=await invoke("pick_files",{kind:"audio"});if(p)addMusic(p)};
 $("#bOpen").onclick=openProject;$("#bSave").onclick=()=>saveProject(false);$("#bNew").onclick=newProject;$("#bDrafts").onclick=()=>showDrafts(false);
-$("#bAddText").onclick=addText;$("#bSplit").onclick=splitAt;$("#bDup").onclick=dupSel;$("#bDel").onclick=delSel;
+$("#bAddText").onclick=addText;$("#bAddCap").onclick=()=>{S.tool="captions";renderRail();renderPanel()};$("#bSplit").onclick=splitAt;$("#bDup").onclick=dupSel;$("#bDel").onclick=delSel;
 $("#bUndo").onclick=undo;$("#bRedo").onclick=redo;$("#bPlay").onclick=()=>S.playing?pause():play();
 $("#bZoomIn").onclick=()=>zoom(1.4);$("#bZoomOut").onclick=()=>zoom(1/1.4);
 function openExport(){if(!S.clips.length)return toast("Add a clip first");pause();$("#mExport").hidden=false;exportSheet();if(!ENV)loadEnv()}
@@ -943,7 +1141,7 @@ try{const win=TAURI.window.getCurrentWindow();let closing=false;win.onCloseReque
 
 (async function init(){
   try{MEDIA_BASE=await invoke("media_base")}catch(e){toast("Could not start local media access: "+e)}
-  try{await Promise.all(FONTS.map(f=>document.fonts.load(`40px "${f}"`)))}catch(e){}
+  try{await Promise.all(FONTS.map(f=>document.fonts.load(`40px "${f}"`)).concat(Object.values(CAP_FONTS).map(f=>document.fonts.load(`40px "${f.css}"`,"नमस्ते Hi"))))}catch(e){}
   const a=await makeSample(0),b=await makeSample(1);
   S.clips=[newClip(a),newClip(b)];S.clips[1].trans="fade";S.clips[1].filter="vivid";
   S.texts=[{id:uid(),text:"SAMPLE PROJECT",start:0,end:2.6,x:.5,y:.2,size:.07,color:"#ffffff",font:"Anton",style:"shadow",box:"#111111",sample:true},

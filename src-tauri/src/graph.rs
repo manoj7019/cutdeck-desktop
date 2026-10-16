@@ -30,6 +30,12 @@ pub struct Project {
     pub texts: Vec<TextLayer>,
     #[serde(default)]
     pub music: Option<Music>,
+    /// Auto captions as an ASS script (built by the editor); burned in after the text overlays.
+    #[serde(default)]
+    pub captions_ass: String,
+    /// Filled in by the exporter: the .ass file, relative to FFmpeg's working folder.
+    #[serde(default)]
+    pub subs_file: Option<String>,
 }
 fn yes() -> bool {
     true
@@ -545,7 +551,11 @@ pub fn build(
         vlabel = format!("vt{ti}");
         ti += 1;
     }
-    writeln!(g, "[{vlabel}]format=yuv420p[vout];").unwrap();
+    match &p.subs_file {
+        // relative paths: FFmpeg runs in the export folder, so no drive-letter escaping is needed
+        Some(f) => writeln!(g, "[{vlabel}]subtitles=filename={f}:fontsdir=fonts,format=yuv420p[vout];").unwrap(),
+        None => writeln!(g, "[{vlabel}]format=yuv420p[vout];").unwrap(),
+    }
 
     // music bed
     let mut alabel = "ac";

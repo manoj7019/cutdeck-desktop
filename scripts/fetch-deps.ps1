@@ -1,12 +1,14 @@
 # Downloads the native pieces Cutdeck bundles (Windows):
 #   - FFmpeg + FFprobe  -> src-tauri\binaries\cutdeck-{ffmpeg,ffprobe}-<target-triple>.exe
 #   - ONNX Runtime 1.22 -> src-tauri\resources\onnxruntime\
+#   - whisper.cpp CLI   -> src-tauri\resources\whisper\ (auto captions; models download on first use)
 # Usage (PowerShell):  .\scripts\fetch-deps.ps1
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"   # makes Invoke-WebRequest much faster
 $root = Split-Path $PSScriptRoot -Parent
 $triple = ((rustc -vV) | Select-String "^host:").ToString().Split(" ")[1].Trim()
 $ortVer = "1.22.0"
+$whisperVer = "b5454"
 $bin = Join-Path $root "src-tauri\binaries"
 $ortDir = Join-Path $root "src-tauri\resources\onnxruntime"
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("cutdeck-" + [guid]::NewGuid())
@@ -35,6 +37,16 @@ $lib = Get-ChildItem -Recurse -Path (Join-Path $tmp "ort") -Filter onnxruntime.d
 Copy-Item $lib.FullName $ortDir -Force
 $shared = Join-Path $lib.DirectoryName "onnxruntime_providers_shared.dll"
 if (Test-Path $shared) { Copy-Item $shared $ortDir -Force }
+
+Write-Host "whisper.cpp $whisperVer (auto captions)"
+$whDir = Join-Path $root "src-tauri\resources\whisper"
+New-Item -ItemType Directory -Force -Path $whDir | Out-Null
+$whZip = Join-Path $tmp "whisper.zip"
+Invoke-WebRequest "https://github.com/ggml-org/whisper.cpp/releases/download/$whisperVer/whisper-bin-x64.zip" -OutFile $whZip
+Expand-Archive $whZip -DestinationPath (Join-Path $tmp "whisper")
+$cli = Get-ChildItem -Recurse -Path (Join-Path $tmp "whisper") -Filter whisper-cli.exe | Select-Object -First 1
+Copy-Item $cli.FullName $whDir -Force
+Get-ChildItem $cli.DirectoryName -Filter *.dll | Where-Object { $_.Name -match '^(whisper|ggml.*)\.dll$' } | Copy-Item -Destination $whDir -Force
 
 Remove-Item -Recurse -Force $tmp
 & (Join-Path $bin "cutdeck-ffmpeg-$triple.exe") -hide_banner -version | Select-Object -First 1

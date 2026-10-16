@@ -55,5 +55,10 @@ else
   cp "$TMP/ort/lib/libonnxruntime.so.${ORT_VER}" "$ORT_DIR/libonnxruntime.so"
 fi
 
+# Auto captions: the whisper.cpp CLI is only bundled on Windows for now; the editor shows
+# "caption engine missing" elsewhere. The folder must exist for the bundler's resource glob.
+mkdir -p "$(dirname "$ORT_DIR")/whisper"
+echo "whisper-cli is bundled on Windows builds only (scripts/fetch-deps.ps1)." > "$(dirname "$ORT_DIR")/whisper/README.txt"
+
 "$BIN/cutdeck-ffmpeg-$TRIPLE" -hide_banner -version | head -1 || true
 echo "Done."

@@ -1,3 +1,4 @@
+mod captions;
 mod cutout;
 mod graph;
 mod media;
@@ -189,6 +190,7 @@ async fn pick_save(app: AppHandle, name: String, ext: String) -> Result<Option<S
         "mp4" => "MP4 video",
         "png" => "PNG image",
         "cutdeck" => "Cutdeck project",
+        "srt" => "SubRip subtitles",
         _ => "File",
     };
     let mut d = app.dialog().file().set_file_name(&name).add_filter(label, &[ext.as_str()]);
@@ -513,6 +515,16 @@ async fn export_run(app: AppHandle, project: graph::Project, out: String) -> Res
                 tx.png.clear();
             }
         }
+        // auto captions: ASS script + the caption fonts next to it for libass
+        if !project.captions_ass.is_empty() {
+            std::fs::write(work.join("captions.ass"), &project.captions_ass).map_err(|e| e.to_string())?;
+            let fonts = work.join("fonts");
+            std::fs::create_dir_all(&fonts).map_err(|e| e.to_string())?;
+            for (name, bytes) in CAPTION_FONTS {
+                std::fs::write(fonts.join(name), bytes).map_err(|e| e.to_string())?;
+            }
+            project.subs_file = Some("captions.ass".into());
+        }
         let started = Instant::now();
         // AI cutout masks (native ONNX Runtime), weighted into the overall progress
         let person: Vec<usize> = project.clips.iter().enumerate().filter(|(_, c)| c.bg_mode == "person").map(|(i, _)| i).collect();
@@ -561,7 +573,7 @@ async fn export_run(app: AppHandle, project: graph::Project, out: String) -> Res
                     .iter()
                     .map(|a| if a == graph::FILTER_SCRIPT { script.display().to_string() } else { a.clone() })
                     .collect();
-                match run_ffmpeg(&app, &st, &t, &args, plan.total, &enc, base) {
+                match run_ffmpeg(&app, &st, &t, &args, plan.total, &enc, base, &work) {
                     Ok(()) => return Ok(()),
                     Err(e) if e == "cancelled" => return Err(e),
                     Err(e) if enc != "libx264" => {
@@ -594,8 +606,10 @@ async fn export_run(app: AppHandle, project: graph::Project, out: String) -> Res
     .await
 }
 
-fn run_ffmpeg(app: &AppHandle, st: &AppState, t: &Tools, args: &[String], total: f64, enc: &str, base: f64) -> Result<(), String> {
+#[allow(clippy::too_many_arguments)]
+fn run_ffmpeg(app: &AppHandle, st: &AppState, t: &Tools, args: &[String], total: f64, enc: &str, base: f64, cwd: &Path) -> Result<(), String> {
     let mut child = cmd(&t.ffmpeg)
+        .current_dir(cwd)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -640,6 +654,42 @@ fn export_cancel(state: State<'_, AppState>) {
     if let Some(c) = state.job.lock().unwrap().as_mut() {
         let _ = c.kill();
     }
+}
+
+// ---------------------------------------------------------------- auto captions
+
+/// Caption fonts (Latin + Devanagari), embedded so libass can burn in exactly what the preview shows.
+const CAPTION_FONTS: &[(&str, &[u8])] = &[
+    ("CutdeckCaptions.ttf", include_bytes!("../../src/fonts/CutdeckCaptions.ttf")),
+    ("CutdeckPoppins.ttf", include_bytes!("../../src/fonts/CutdeckPoppins.ttf")),
+];
+
+#[tauri::command]
+async fn captions_status(app: AppHandle) -> Result<serde_json::Value, String> {
+    blocking(move || captions::status(&app).map(|s| serde_json::to_value(s).unwrap_or_default())).await
+}
+
+#[tauri::command]
+async fn captions_download(app: AppHandle, quality: String) -> Result<(), String> {
+    blocking(move || captions::download(&app, &quality)).await
+}
+
+#[tauri::command]
+async fn captions_run(app: AppHandle, jobs: Vec<captions::Job>, lang: String, quality: String) -> Result<serde_json::Value, String> {
+    blocking(move || {
+        let t = app.state::<AppState>().tools()?;
+        let work = tmp_dir(&app)?.join(format!("captions{}", app.state::<AppState>().next_id()));
+        std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+        let r = captions::run(&app, &t, &work, jobs, &lang, &quality);
+        let _ = std::fs::remove_dir_all(&work);
+        r.map(|v| serde_json::to_value(v).unwrap_or_default())
+    })
+    .await
+}
+
+#[tauri::command]
+fn captions_cancel(app: AppHandle) {
+    app.state::<captions::Captions>().stop();
 }
 
 // ---------------------------------------------------------------- drafts
@@ -734,6 +784,11 @@ pub fn run() {
             }
             let search = vec![res.join("onnxruntime"), exe_dir.join("onnxruntime"), exe_dir.clone(), res.clone()];
             app.manage(cutout::Cutout::new(model_dir, search));
+            let mut whisper = res.join("whisper");
+            if !whisper.join("whisper-cli.exe").is_file() && !whisper.join("whisper-cli").is_file() {
+                whisper = exe_dir.join("whisper");
+            }
+            app.manage(captions::Captions::new(whisper));
             // warm up ONNX Runtime + the fast model in the background
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -751,7 +806,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             env_status, probe_media, pick_files, pick_save, write_text, read_text, write_bytes,
             reveal, path_exists, media_base, make_proxy, cutout_mask, write_temp,
-            export_run, export_cancel, list_drafts, save_draft, load_draft, rename_draft, delete_draft
+            export_run, export_cancel, list_drafts, save_draft, load_draft, rename_draft, delete_draft,
+            captions_status, captions_download, captions_run, captions_cancel
         ])
         .run(tauri::generate_context!())
         .expect("error while running Cutdeck");
@@ -799,7 +855,7 @@ mod tests {
         let proj = graph::Project {
             width: 360, height: 640, fps: 30, quality: "std".into(), encoder: "libx264".into(), turbo: true,
             canvas: graph::CanvasCfg { bg: "color".into(), color: "#000000".into() },
-            clips: vec![clip], texts: vec![], music: None,
+            clips: vec![clip], texts: vec![], music: None, captions_ass: String::new(), subs_file: None,
         };
         let mut info = HashMap::new();
         info.insert(src.clone(), tools::probe(&t, &src).unwrap());
