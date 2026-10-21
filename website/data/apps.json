@@ -1,0 +1,48 @@
+{
+  "_howToAddAnApp": "Append an object to apps, then add website/<id>/index.html. Download file names must match the assets uploaded by .github/workflows/release.yml. The home page renders this list; the Cutdeck page is hand-written HTML so search engines see the full product copy.",
+  "apps": [
+    {
+      "id": "cutdeck",
+      "name": "Cutdeck",
+      "tagline": "Desktop video editor",
+      "description": "Timeline editing, on-device auto captions, stabilization, and MP4 export from 0.25× to 100× speed.",
+      "href": "cutdeck/",
+      "icon": "assets/cutdeck-icon.png",
+      "platforms": ["macOS", "Linux", "Windows"],
+      "repo": "manoj7019/cutdeck-desktop",
+      "accent": "#5ac8fa",
+      "downloads": [
+        {
+          "os": "macOS",
+          "label": "Apple Silicon",
+          "asset": "Cutdeck-macos-apple-silicon.dmg",
+          "url": "https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-macos-apple-silicon.dmg"
+        },
+        {
+          "os": "macOS",
+          "label": "Intel",
+          "asset": "Cutdeck-macos-intel.dmg",
+          "url": "https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-macos-intel.dmg"
+        },
+        {
+          "os": "Linux",
+          "label": "AppImage",
+          "asset": "Cutdeck-linux-x86_64.AppImage",
+          "url": "https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-linux-x86_64.AppImage"
+        },
+        {
+          "os": "Linux",
+          "label": ".deb",
+          "asset": "Cutdeck-linux-amd64.deb",
+          "url": "https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-linux-amd64.deb"
+        },
+        {
+          "os": "Windows",
+          "label": "64-bit setup",
+          "asset": "Cutdeck-windows-x64-setup.exe",
+          "url": "https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-windows-x64-setup.exe"
+        }
+      ]
+    }
+  ]
+}

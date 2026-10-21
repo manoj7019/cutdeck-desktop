@@ -2,11 +2,19 @@
 #   - FFmpeg + FFprobe  -> src-tauri\binaries\cutdeck-{ffmpeg,ffprobe}-<target-triple>.exe
 #   - ONNX Runtime 1.22 -> src-tauri\resources\onnxruntime\
 #   - whisper.cpp CLI   -> src-tauri\resources\whisper\ (auto captions; models download on first use)
-# Usage (PowerShell):  .\scripts\fetch-deps.ps1
+# Usage (PowerShell):  .\scripts\fetch-deps.ps1 [-Triple x86_64-pc-windows-msvc]
+# The whisper tag matches scripts/fetch-deps.sh.
+param(
+  [Parameter(Position = 0)]
+  [string]$Triple = ""
+)
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"   # makes Invoke-WebRequest much faster
 $root = Split-Path $PSScriptRoot -Parent
-$triple = ((rustc -vV) | Select-String "^host:").ToString().Split(" ")[1].Trim()
+if (-not $Triple) {
+  $Triple = ((rustc -vV) | Select-String "^host:").ToString().Split(" ")[1].Trim()
+}
+$triple = $Triple
 $ortVer = "1.22.0"
 $whisperVer = "b5454"
 $bin = Join-Path $root "src-tauri\binaries"

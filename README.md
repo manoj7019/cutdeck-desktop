@@ -26,25 +26,70 @@ A desktop video editor in the spirit of InShot, built with **Rust + Tauri**. The
 
 ## Install
 
-Download the installer for your system from the **Releases** page of your GitHub repository (built by the included workflow, see below):
+Download the latest installers from the GitHub **Releases** page. The release workflow uploads these stable names (the website links to `releases/latest/download/<name>`):
 
-* **Windows:** `Cutdeck_0.1.0_x64-setup.exe`. Windows SmartScreen will warn because the app isn't code-signed: click *More info → Run anyway*.
-* **macOS:** the `.dmg` for Apple silicon (`aarch64`) or Intel (`x64`). The first time, right-click the app → *Open* (it isn't notarised).
-* **Linux:** the `.deb` or `.AppImage`.
+| System | File |
+| --- | --- |
+| macOS Apple Silicon | `Cutdeck-macos-apple-silicon.dmg` |
+| macOS Intel | `Cutdeck-macos-intel.dmg` |
+| Linux | `Cutdeck-linux-x86_64.AppImage` and `Cutdeck-linux-amd64.deb` |
+| Windows | `Cutdeck-windows-x64-setup.exe` and `Cutdeck-windows-x64.msi` |
 
-FFmpeg, ONNX Runtime and the AI models are bundled; nothing else to install.
+FFmpeg, ONNX Runtime, the caption engine and the AI models are bundled. Speech models download on first use and stay on the computer.
 
-## Build installers with GitHub (no local setup)
+The builds are **not code-signed or notarized**.
 
-1. Create a GitHub repository and push this folder to it.
-2. Push a tag: `git tag v0.1.0 && git push --tags`.
-3. The **Build installers** workflow builds Windows, macOS (both chips) and Linux, runs the Rust tests, and creates a **draft release** with the installers. Publish it from the Releases page.
+* **Windows:** SmartScreen says the installer isn't recognized. Choose *More info → Run anyway*.
+* **macOS (Gatekeeper):** right-click Cutdeck → *Open* → *Open*. If it still will not open:
 
-You can also run the workflow by hand (Actions tab → Build installers → Run workflow) to get the installers as downloadable artifacts.
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/Cutdeck.app
+  ```
+
+  Use the Apple Silicon disk image on M1/M2/M3/M4 and the Intel disk image on older Macs. macOS 11 or later.
+* **Linux:** `chmod +x Cutdeck-linux-x86_64.AppImage` and run it, or `sudo apt install ./Cutdeck-linux-amd64.deb` (the package pulls in WebKitGTK).
+
+### Signing and notarizing macOS later
+
+Unsigned is enough to ship. Notarization needs an Apple Developer account. When you have one, add these repository secrets and Tauri will sign during `tauri build` if the environment variables are set on the macOS jobs:
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_CERTIFICATE` | Base64 of the Developer ID Application `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `APPLE_SIGNING_IDENTITY` | Developer ID Application name |
+| `APPLE_ID` | Apple ID email |
+| `APPLE_PASSWORD` | App-specific password |
+| `APPLE_TEAM_ID` | Team ID |
+
+Until those are set, leave them unset. An empty identity makes the build try to sign and fail. The workflow does not pass them.
+
+## Cut a release
+
+1. Match `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json` if you want the tag to agree with the repo (the workflow also writes the tag version into those files on the runner).
+2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+3. The **Release** workflow (`.github/workflows/release.yml`) builds Windows, macOS Apple Silicon, macOS Intel (cross-compiled on the Apple Silicon runner) and Linux, runs the Rust tests, and publishes a GitHub Release with the installers above. `releases/latest` only sees a published release, which is what the website download buttons use.
+4. To build without publishing, open Actions → Release → Run workflow. The installers are artifacts on that run.
+
+## Website (GitHub Pages)
+
+The public site lives in `website/`. The home page is a grid of apps from `website/data/apps.json`. Cutdeck’s product page is `website/cutdeck/index.html`.
+
+**Support link:** edit `supportUrl` in `website/data/site.json`. It starts as `https://buymeacoffee.com/REPLACE_ME`. The amber “Buy me a coffee” button reads that file. While the URL contains `REPLACE_ME`, the site shows a placeholder note.
+
+**Add another app:** append an entry to `website/data/apps.json` and add `website/<id>/index.html`.
+
+**Turn on GitHub Pages** (once):
+
+1. Merge this to `master`.
+2. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. The **GitHub Pages** workflow (`.github/workflows/pages.yml`) deploys `website/` on pushes to `master` that touch the site. The site is `https://manoj7019.github.io/cutdeck-desktop/`.
+
+Canonical URLs in the HTML use that address. If you add a custom domain, update them and `pagesUrl` in `website/data/site.json`.
 
 ## Build on your own computer
 
-Prerequisites: [Rust](https://rustup.rs), [Node.js 20+](https://nodejs.org), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Windows: *Microsoft C++ Build Tools* + WebView2, which Windows 10/11 already has).
+Prerequisites: [Rust](https://rustup.rs), [Node.js 20+](https://nodejs.org), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Windows: *Microsoft C++ Build Tools* + WebView2, which Windows 10/11 already has). macOS also needs CMake (`brew install cmake`) so the caption engine can be built. Linux needs the WebKitGTK packages below.
 
 **Windows (PowerShell)**
 
@@ -58,11 +103,17 @@ npm run build                # installers in src-tauri\target\release\bundle\
 **macOS / Linux**
 
 ```bash
+# Linux (Debian/Ubuntu), once:
+sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 file build-essential curl wget xz-utils unzip pkg-config libxdo-dev
+# Ubuntu 24.04 names the FUSE library libfuse2t64 if libfuse2 is not a package.
+
 bash scripts/fetch-deps.sh
 npm install
 npm run dev
-npm run build
+APPIMAGE_EXTRACT_AND_RUN=1 npm run build
 ```
+
+`scripts/fetch-deps.sh` takes an optional target triple (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`). It refuses an FFmpeg build that lacks vidstab (stabilization) or libass (burned-in captions). On macOS it also requires VideoToolbox. Apple Silicon FFmpeg comes from OSXExperts; Intel FFmpeg comes from evermeet.cx, with an OSXExperts fallback. whisper.cpp is the official Linux build, and is compiled from the same tag on macOS.
 
 ### Tests
 
@@ -99,9 +150,10 @@ src-tauri/src/
 src-tauri/resources/
   models/                 u2netp (fast, 4.6 MB) and silueta (best, 43 MB)
   onnxruntime/            ONNX Runtime library (fetched by the script)
-scripts/                  fetch-deps (FFmpeg + ONNX Runtime), prepare-models.py
+scripts/                  fetch-deps (FFmpeg + ONNX Runtime + whisper.cpp), prepare-models.py
 tests/                    end-to-end UI test
-.github/workflows/        installer builds for Windows, macOS, Linux
+website/                  static site (home grid + Cutdeck page) for GitHub Pages
+.github/workflows/        release.yml (installers), pages.yml (the site)
 ```
 
 ## Good to know
@@ -109,4 +161,4 @@ tests/                    end-to-end UI test
 * **iPhone HEVC / ProRes clips:** if the system webview can't play a format, Cutdeck makes a 720p preview copy automatically. Exports always use your original file.
 * **Speed and sound:** above about 4x, sped-up audio becomes noise. Choosing 8x or more mutes the clip (you can turn it back on); add music instead.
 * **AI cutout speed:** "Fast" runs about 5–20 frames/s on a typical laptop CPU; "Best" is about 4x slower with cleaner hair and edges. Green screen is instant.
-* **Licences:** Cutdeck's own code is yours. It bundles FFmpeg (GPL build from [BtbN](https://github.com/BtbN/FFmpeg-Builds) / [Martin Riedl](https://ffmpeg.martin-riedl.de) — source available there), [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT), U²-Net models via [rembg](https://github.com/danielgatis/rembg) (Apache-2.0) and fonts from Fontsource (OFL). If you distribute the app, include those notices and link to the FFmpeg source.
+* **Licences:** Cutdeck's own code is yours. It bundles FFmpeg GPL builds — [BtbN](https://github.com/BtbN/FFmpeg-Builds) on Windows and Linux, [OSXExperts](https://www.osxexperts.net/) on Apple Silicon, [evermeet.cx](https://evermeet.cx/ffmpeg/) on Intel Macs (source is the matching FFmpeg tree) — plus [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT), [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT), U²-Net models via [rembg](https://github.com/danielgatis/rembg) (Apache-2.0) and fonts from Fontsource (OFL). If you distribute the app, include those notices and link to the FFmpeg source.
