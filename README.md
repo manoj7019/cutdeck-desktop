@@ -89,7 +89,7 @@ Canonical URLs in the HTML use that address. If you add a custom domain, update 
 
 ## Build on your own computer
 
-Prerequisites: [Rust](https://rustup.rs), [Node.js 20+](https://nodejs.org), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Windows: *Microsoft C++ Build Tools* + WebView2, which Windows 10/11 already has). macOS also needs CMake (`brew install cmake`) so the caption engine can be built. Linux needs the WebKitGTK packages below.
+Prerequisites: [Rust 1.85+](https://rustup.rs) (current stable; older compilers cannot build the WebKit crates), [Node.js 20+](https://nodejs.org), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Windows: *Microsoft C++ Build Tools* + WebView2, which Windows 10/11 already has). macOS also needs CMake (`brew install cmake`) so the caption engine can be built. Linux needs the WebKitGTK packages below.
 
 **Windows (PowerShell)**
 
