@@ -598,12 +598,13 @@ const ICON={
  adjust:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
  cutout:'<circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/><path d="M3 3h3M18 3h3M3 3v3M21 3v3" />',
  transform:'<path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/>',
+ stabilize:'<rect x="6" y="7" width="12" height="10" rx="2"/><path d="M3 9v6M21 9v6M9 3h6M9 21h6"/>',
  volume:'<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/>',
  text:'<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
  captions:'<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.5 10.2a2.2 2.2 0 100 3.6M17 10.2a2.2 2.2 0 100 3.6"/>',
  music:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'};
-const TOOLS=[["canvas","Canvas"],["trim","Trim"],["speed","Speed"],["filter","Filter"],["adjust","Adjust"],["cutout","Cutout"],["transform","Rotate"],["volume","Volume"],["text","Text"],["captions","Captions"],["music","Music"]];
-const CLIP_TOOLS=["trim","speed","filter","adjust","cutout","transform","volume"];
+const TOOLS=[["canvas","Canvas"],["trim","Trim"],["speed","Speed"],["filter","Filter"],["adjust","Adjust"],["cutout","Cutout"],["transform","Rotate"],["stabilize","Stabilize"],["volume","Volume"],["text","Text"],["captions","Captions"],["music","Music"]];
+const CLIP_TOOLS=["trim","speed","filter","adjust","cutout","transform","stabilize","volume"];
 function renderRail(){$("#rail").innerHTML=TOOLS.map(([k,l])=>`<button class="tool${S.tool===k?" on":""}" data-tool="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>${l}</button>`).join("")}
 $("#rail").addEventListener("click",e=>{const b=e.target.closest(".tool");if(!b)return;S.tool=b.dataset.tool;
   if(CLIP_TOOLS.includes(S.tool)&&!selClip()){const h=clipAt(S.T);if(h)S.sel={type:"clip",id:h.clip.id}}
@@ -729,6 +730,7 @@ function renderPanel(){
     P.querySelector("[data-flip]").onclick=()=>{snap();c.flip=!c.flip;renderPanel();requestStill()};
     P.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{snap();c.fit=b.dataset.fit;renderPanel();requestStill()});
     bindSlider("zZ",v=>c.zoom=v,v=>v.toFixed(2)+"x");$("#zR").onclick=()=>{snap();c.px=c.py=0;c.zoom=1;c.rot=0;c.flip=false;renderPanel();requestStill()};return
+  case"stabilize":stabPanel(P,c,m);return;
   case"volume":
     if(m.kind!=="video"){P.innerHTML=`<h2>Volume</h2><p class="empty">Photos have no sound. Add music from the timeline toolbar.</p>`;return}
     h=`<h2>Volume</h2><p class="sub">Original sound of this clip.</p>${slider("vV","Volume",0,100,1,Math.round(c.vol*100),Math.round(c.vol*100)+"%")}<div class="chips">${chip(c.vol===0,'data-v="0"',"Mute")}${chip(c.vol===1,'data-v="1"',"100%")}</div>
@@ -774,6 +776,39 @@ function renderPanel(){
 }
 function refreshAll(){fitPreview();renderRail();renderPanel();renderTimeline();updUndo();requestStill()}
 
+/* ---------- stabilization (FFmpeg two-pass vid.stab in Rust, see stabilize.rs) ----------
+The whole source file is stabilized into a new file and swapped in for the clip, so trims,
+speed and captions stay on the same source times. "Use original" swaps it back. */
+const STABJOB={running:false,clip:null,phase:"",fraction:0,eta:-1,error:""};
+const STAB_LEVELS=[["low","Low"],["medium","Medium"],["high","High"]];
+async function runStab(c,strength){if(STABJOB.running)return;const m=S.media.get(c.mediaId);if(!m||m.kind!=="video")return;
+  const orig=c.stabOrig?S.media.get(c.stabOrig):m;if(!orig)return;pause();
+  Object.assign(STABJOB,{running:true,clip:c.id,phase:"analyze",fraction:0,eta:-1,error:""});renderPanel();
+  let un=null;try{un=await listen("stabilize-progress",e=>{const p=e.payload;Object.assign(STABJOB,{phase:p.phase,fraction:p.fraction,eta:p.eta});stabProgressUi()});
+    const out=await invoke("stabilize_run",{path:orig.path,strength});
+    let nm=[...S.media.values()].find(x=>x.path===out);if(!nm)nm=await addPath(out);nm.name=orig.name+" (stabilized)";
+    snap();const old=c.mediaId;c.stabOrig=orig.id;c.stab=strength;c.mediaId=nm.id;
+    if(!S.caps.some(k=>k.mediaId===nm.id))S.caps=S.caps.concat(S.caps.filter(k=>k.mediaId===old).map(k=>({...k,id:uid(),mediaId:nm.id})));
+    toast("Clip stabilized")
+  }catch(e){const msg=(e&&e.message)||String(e);if(msg!=="cancelled")STABJOB.error=msg;else toast("Stabilizing stopped")}
+  finally{STABJOB.running=false;if(un)un();refreshAll()}}
+function stabProgressUi(){const b=$("#stabBar"),t=$("#stabTxt");if(!b)return;const J=STABJOB;
+  const ph={analyze:"Analyzing camera motion",render:"Smoothing and rendering",done:"Finishing"}[J.phase]||"Working";
+  b.style.width=(clamp(J.fraction,0,1)*100).toFixed(1)+"%";t.textContent=`${ph} - ${Math.round(J.fraction*100)}%${J.eta>0?" - "+eta(J.eta):""}`}
+function stabPanel(P,c,m){if(m.kind!=="video"){P.innerHTML=`<h2>Stabilize</h2><p class="empty">Photos don't need stabilizing.</p>`;return}
+  const J=STABJOB;if(!c.stabPick)c.stabPick=c.stab||"medium";
+  let h=`<h2>Stabilize</h2><p class="sub">Smooths out shaky handheld footage. Runs on this computer; the clip is zoomed slightly to hide moving edges.</p>
+  <div class="grp"><div class="lbl">Strength</div><div class="chips">${STAB_LEVELS.map(([v,l])=>chip(c.stabPick===v,`data-sl="${v}"`+(J.running?" disabled":""),l)).join("")}</div>
+  <div class="hint" style="line-height:1.45">Low keeps intentional pans; High gives a locked-off tripod look but zooms in more.</div></div>`;
+  if(J.running&&J.clip===c.id)h+=`<div class="grp"><div class="bar"><i id="stabBar"></i></div><div class="tc" id="stabTxt" style="font-size:12px">Starting</div><button class="btn" id="stabStop">Cancel</button></div>`;
+  else h+=`<div class="grp"><button class="btn pri" id="stabGo" ${J.running?"disabled":""}>${c.stabOrig?"Re-stabilize":"Stabilize clip"}</button></div>`;
+  if(c.stabOrig&&!J.running)h+=`<div class="grp"><div class="hint">Stabilized (${esc(STAB_LEVELS.find(x=>x[0]===c.stab)?.[1]||"")})</div><button class="btn" id="stabOff">Use original</button></div>`;
+  if(J.error)h+=`<p class="note" style="color:#e55">${esc(J.error)}</p>`;
+  P.innerHTML=h;stabProgressUi();
+  P.querySelectorAll("[data-sl]").forEach(b=>b.onclick=()=>{c.stabPick=b.dataset.sl;renderPanel()});
+  if($("#stabGo"))$("#stabGo").onclick=()=>runStab(c,c.stabPick);
+  if($("#stabStop"))$("#stabStop").onclick=()=>{invoke("stabilize_cancel").catch(()=>{});$("#stabTxt").textContent="Stopping..."};
+  if($("#stabOff"))$("#stabOff").onclick=()=>{if(!S.media.get(c.stabOrig))return toast("The original file is no longer in this project");snap();c.mediaId=c.stabOrig;delete c.stabOrig;delete c.stab;refreshAll()}}
 /* ---------- auto captions (offline whisper.cpp in Rust, see captions.rs) ----------
    Captions are stored against the SOURCE time of a media file ({mediaId, s, e}), so they
    follow trims, splits, reordering and speed changes; capInstances() maps them onto the timeline. */

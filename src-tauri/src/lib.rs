@@ -2,6 +2,7 @@ mod captions;
 mod cutout;
 mod graph;
 mod media;
+mod stabilize;
 mod tools;
 
 use base64::Engine as _;
@@ -692,6 +693,26 @@ fn captions_cancel(app: AppHandle) {
     app.state::<captions::Captions>().stop();
 }
 
+// ---------------------------------------------------------------- stabilization
+
+#[tauri::command]
+async fn stabilize_run(app: AppHandle, path: String, strength: String) -> Result<String, String> {
+    blocking(move || {
+        let t = app.state::<AppState>().tools()?;
+        let work = tmp_dir(&app)?.join(format!("stabilize{}", app.state::<AppState>().next_id()));
+        std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+        let r = stabilize::run(&app, &t, &work, &path, &strength);
+        let _ = std::fs::remove_dir_all(&work); // removes motion.trf
+        r
+    })
+    .await
+}
+
+#[tauri::command]
+fn stabilize_cancel(app: AppHandle) {
+    app.state::<stabilize::Stabilizer>().stop();
+}
+
 // ---------------------------------------------------------------- drafts
 
 /// Autosaved projects live in <app data>/drafts as <id>.cutdeck plus <id>.json metadata.
@@ -773,6 +794,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
+        .manage(stabilize::Stabilizer::default())
         .setup(|app| {
             let server = media::start().map_err(|e| format!("Could not start the media server: {e}"))?;
             app.manage(server);
@@ -807,7 +829,8 @@ pub fn run() {
             env_status, probe_media, pick_files, pick_save, write_text, read_text, write_bytes,
             reveal, path_exists, media_base, make_proxy, cutout_mask, write_temp,
             export_run, export_cancel, list_drafts, save_draft, load_draft, rename_draft, delete_draft,
-            captions_status, captions_download, captions_run, captions_cancel
+            captions_status, captions_download, captions_run, captions_cancel,
+            stabilize_run, stabilize_cancel
         ])
         .run(tauri::generate_context!())
         .expect("error while running Cutdeck");
