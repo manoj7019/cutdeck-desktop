@@ -5,6 +5,10 @@ name: Release
 # that GitHub Release. Run it by hand from the Actions tab to produce the
 # files as artifacts without publishing a release.
 #
+# Keep this tag filter as v*. Bob Player publishes on bobplayer-v* from
+# bob-player.yml. A broader filter would put both apps on one release, and
+# releases/latest can only point at one of them.
+#
 # macOS builds are unsigned and not notarized. See README.md for the
 # Gatekeeper workaround and for the secrets that turn signing on later.
 on:
@@ -226,7 +230,7 @@ jobs:
           prerelease: false
           files: dist/*
           body: |
-            Installers for Cutdeck ${{ github.ref_name }}. The file names stay the same every version, so the website can link to `releases/latest/download`.
+            Installers for Cutdeck ${{ github.ref_name }}. The file names stay the same every version. The website picks the newest `v*` release, so a Bob Player tag does not move these links.
 
             | System | File |
             | --- | --- |

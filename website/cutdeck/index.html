@@ -28,7 +28,7 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "author": { "@type": "Person", "name": "Manoj" },
     "description": "Free desktop video editor with on-device auto captions, video stabilization, and MP4 export from 0.25× to 100× speed.",
-    "downloadUrl": "https://github.com/manoj7019/cutdeck-desktop/releases/latest"
+    "downloadUrl": "https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-windows-x64-setup.exe"
   }
   </script>
 </head>
@@ -41,7 +41,7 @@
     </a>
     <nav class="nav" aria-label="Site">
       <a class="quiet" href="../">All apps</a>
-      <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Buy me a coffee</a>
+      <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
     </nav>
   </header>
   <main>
@@ -50,14 +50,14 @@
         <p class="kicker">Free desktop video editor</p>
         <h1>Cut the video.<br>Keep the file.</h1>
         <p class="lede">Cutdeck is a timeline editor for macOS, Linux and Windows. Captions, stabilization and export all run on your computer. Nothing is uploaded.</p>
-        <div class="hero-actions">
-          <a class="btn primary" href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-macos-apple-silicon.dmg">macOS <small>Apple Silicon</small></a>
-          <a class="btn" href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-macos-intel.dmg">macOS <small>Intel</small></a>
-          <a class="btn" href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-linux-x86_64.AppImage">Linux <small>AppImage</small></a>
-          <a class="btn" href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-linux-amd64.deb">Linux <small>.deb</small></a>
-          <a class="btn" href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-windows-x64-setup.exe">Windows <small>64-bit</small></a>
+        <div class="hero-actions" data-release-repo="manoj7019/cutdeck-desktop" data-release-prefix="v">
+          <a class="btn primary" data-release-asset="Cutdeck-macos-apple-silicon.dmg" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-macos-apple-silicon.dmg">macOS <small>Apple Silicon</small></a>
+          <a class="btn" data-release-asset="Cutdeck-macos-intel.dmg" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-macos-intel.dmg">macOS <small>Intel</small></a>
+          <a class="btn" data-release-asset="Cutdeck-linux-x86_64.AppImage" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-linux-x86_64.AppImage">Linux <small>AppImage</small></a>
+          <a class="btn" data-release-asset="Cutdeck-linux-amd64.deb" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-linux-amd64.deb">Linux <small>.deb</small></a>
+          <a class="btn" data-release-asset="Cutdeck-windows-x64-setup.exe" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-windows-x64-setup.exe">Windows <small>64-bit</small></a>
         </div>
-        <p class="fine">Buttons download the latest GitHub Release. They work after the first published <code>v*</code> tag. A Windows <a href="https://github.com/manoj7019/cutdeck-desktop/releases/latest/download/Cutdeck-windows-x64.msi">.msi</a> is on that release too. macOS 11 or later.</p>
+        <p class="fine">Each button finds the newest Cutdeck release (tags <code>v*</code>, such as <code>v0.1.0</code>) and downloads that file. Bob Player uses <code>bobplayer-v*</code> tags, so these links stay on Cutdeck. Until that lookup runs, they point at <code>v0.1.0</code>. A Windows <a data-release-repo="manoj7019/cutdeck-desktop" data-release-prefix="v" data-release-asset="Cutdeck-windows-x64.msi" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/v0.1.0/Cutdeck-windows-x64.msi">.msi</a> is on the same release. macOS 11 or later. <a href="https://github.com/manoj7019/cutdeck-desktop/releases">All releases</a>.</p>
       </div>
     </section>
 
@@ -191,7 +191,7 @@
       <div class="wrap">
         <p class="kicker">Install</p>
         <h2 id="install-title">First launch</h2>
-        <p class="intro">The downloads above are the latest release. The builds are not code-signed or notarized yet, so each system asks once.</p>
+        <p class="intro">The downloads above follow the newest <code>v*</code> release. The builds are not code-signed or notarized yet, so each system asks once.</p>
         <div class="notes">
           <details open>
             <summary>macOS: “cannot be opened” or “unidentified developer”</summary>
@@ -210,12 +210,30 @@
         </div>
       </div>
     </section>
+    <section class="section" id="reviews" aria-labelledby="reviews-title">
+      <div class="wrap">
+        <p class="kicker">From people using it</p>
+        <h2 id="reviews-title">Reviews</h2>
+        <p class="intro">If Cutdeck has been useful, leave a short review. A comment is enough. Use the reaction buttons on that comment as the rating.</p>
+        <div class="reviews-host" data-reviews>
+          <p class="placeholder" data-reviews-soon>Reviews opening soon. Turn on GitHub Discussions, install the giscus app, and put the repo id and category id in <code>website/data/site.json</code>. The steps are in the repository README.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section support-block" id="support" aria-labelledby="support-title">
+      <div class="wrap">
+        <p class="kicker">Optional</p>
+        <h2 id="support-title">Support my work</h2>
+        <p class="intro" data-support-blurb>Support is optional. The apps stay free either way, and it helps Manoj keep building them.</p>
+        <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
+        <p class="placeholder" data-support-note>Support link placeholder. Set <code>supportUrl</code> in <code>website/data/site.json</code> to a Buy Me a Coffee, Patreon, or any other page. The button label is <code>supportLabel</code>. This note hides when the URL no longer contains <code>REPLACE_ME</code>.</p>
+      </div>
+    </section>
   </main>
   <footer class="site-footer">
     <div class="wrap">
       <p>Cutdeck is free. <a href="https://github.com/manoj7019/cutdeck-desktop">Source and releases</a>.</p>
-      <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Buy me a coffee</a>
-      <p class="placeholder" data-support-note>Support link placeholder. Set <code>supportUrl</code> in <code>website/data/site.json</code> — replace <code>REPLACE_ME</code> in <code>https://buymeacoffee.com/REPLACE_ME</code>.</p>
     </div>
   </footer>
   <script src="../js/site.js"></script>

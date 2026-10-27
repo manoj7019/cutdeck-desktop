@@ -26,7 +26,7 @@ A desktop video editor in the spirit of InShot, built with **Rust + Tauri**. The
 
 ## Install
 
-Download the latest installers from the GitHub **Releases** page. The release workflow uploads these stable names (the website links to `releases/latest/download/<name>`):
+Download the installers from the GitHub **Releases** page. The release workflow uploads these stable names. The website does not use `releases/latest`, because that URL can only point at one release and this repo also ships Bob Player. Each Cutdeck button asks the GitHub API for the newest tag that starts with `v` and links to that asset. Before the lookup runs, the link points at tag `v0.1.0`:
 
 | System | File |
 | --- | --- |
@@ -68,16 +68,56 @@ Until those are set, leave them unset. An empty identity makes the build try to 
 
 1. Match `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json` if you want the tag to agree with the repo (the workflow also writes the tag version into those files on the runner).
 2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
-3. The **Release** workflow (`.github/workflows/release.yml`) builds Windows, macOS Apple Silicon, macOS Intel (cross-compiled on the Apple Silicon runner) and Linux, runs the Rust tests, and publishes a GitHub Release with the installers above. `releases/latest` only sees a published release, which is what the website download buttons use.
+3. The **Release** workflow (`.github/workflows/release.yml`) builds Windows, macOS Apple Silicon, macOS Intel (cross-compiled on the Apple Silicon runner) and Linux, runs the Rust tests, and publishes a GitHub Release with the installers above. Keep Cutdeck tags as `v*` (for example `v0.1.0`). Bob Player uses `bobplayer-v*` so the two apps are never the same release.
 4. To build without publishing, open Actions → Release → Run workflow. The installers are artifacts on that run.
+
+## Bob Player
+
+Bob Player is a tiny Windows music player. The source is the single file `apps/bob-player/BobPlayer.cs` (WinForms window, WPF `MediaPlayer` for sound).
+
+**Cut a Bob Player release**
+
+```bash
+git tag bobplayer-v1.0.0 && git push origin bobplayer-v1.0.0
+```
+
+`.github/workflows/bob-player.yml` runs on `windows-latest`, compiles with the .NET Framework `csc` (`/target:winexe /platform:x64`, referencing `PresentationCore`, `WindowsBase` and `System.Xaml`), checks the exe is a 64-bit GUI program, and attaches `BobPlayer-windows-x64.exe` to that release.
+
+**Dry run, no release:** Actions → Bob Player → Run workflow. The same compile runs and the exe is the artifact `bob-player-windows-x64`. Publishing stays off, because a hand-run uses a branch ref rather than a `bobplayer-v*` tag.
+
+**Build on Windows**
+
+```powershell
+$fw = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
+& "$fw\csc.exe" /nologo /utf8 /optimize+ /target:winexe /platform:x64 `
+  /out:BobPlayer-windows-x64.exe `
+  /r:System.Drawing.dll `
+  /r:System.Windows.Forms.dll `
+  /r:"$fw\WPF\PresentationCore.dll" `
+  /r:"$fw\WPF\WindowsBase.dll" `
+  /r:"$fw\WPF\System.Xaml.dll" `
+  apps\bob-player\BobPlayer.cs
+```
+
+Windows only. The program needs .NET Framework 4.8, which Windows 10 and 11 already include. It is unsigned: SmartScreen → More info → Run anyway. The playlist is `%AppData%\BobPlayer\playlist.txt`.
 
 ## Website (GitHub Pages)
 
-The public site lives in `website/`. The home page is a grid of apps from `website/data/apps.json`. Cutdeck’s product page is `website/cutdeck/index.html`.
+The public site lives in `website/`. The home page is a grid of apps from `website/data/apps.json`. Cutdeck’s product page is `website/cutdeck/index.html`. Bob Player’s is `website/bob-player/index.html`.
 
-**Support link:** edit `supportUrl` in `website/data/site.json`. It starts as `https://buymeacoffee.com/REPLACE_ME`. The amber “Buy me a coffee” button reads that file. While the URL contains `REPLACE_ME`, the site shows a placeholder note.
+**Downloads:** `releases/latest/download` always follows the single newest release in the repo. After both apps ship, that would be whichever tag was pushed last. The buttons call `https://api.github.com/repos/manoj7019/cutdeck-desktop/releases?per_page=100` and pick the newest release whose tag starts with that app’s prefix (`v` for Cutdeck, `bobplayer-v` for Bob Player) and which contains the asset name. The static href is the fallback tag (`v0.1.0` or `bobplayer-v1.0.0`) for when that request has not run.
 
-**Add another app:** append an entry to `website/data/apps.json` and add `website/<id>/index.html`.
+**Support link:** edit `supportUrl` in `website/data/site.json`. It starts as `https://buymeacoffee.com/REPLACE_ME`. Put a Buy Me a Coffee, Patreon, or any other URL there. `supportLabel` is the button text (default “Support my work”). `supportBlurb` is the line under the heading. While the URL contains `REPLACE_ME`, the site shows a placeholder note.
+
+**Reviews:** each app page has a Reviews section backed by [giscus](https://giscus.app) (GitHub Discussions). Until `giscus.repoId` and `giscus.categoryId` in `website/data/site.json` are real ids, the section says “Reviews opening soon.”
+
+1. On the repo: **Settings → General → Features → Discussions**. Save.
+2. Open the **Discussions** tab, edit categories, and add one named `Reviews` with the open-ended discussion format (not Announcements, which only lets maintainers start threads).
+3. Install the giscus GitHub App: <https://github.com/apps/giscus>. Grant it `manoj7019/cutdeck-desktop`.
+4. Open <https://giscus.app>. Repository: `manoj7019/cutdeck-desktop`. Mapping: **pathname**. Category: **Reviews**. Reactions: on. The generated script shows `data-repo-id` (starts with `R_`) and `data-category-id` (starts with `DIC_`).
+5. Paste those into `giscus.repoId` and `giscus.categoryId` in `website/data/site.json`. Commit to `master`. The placeholder hides and the comment box loads. Discussions are keyed by the page path, so Cutdeck and Bob Player stay separate. The repo needs to be public.
+
+**Add another app:** append an entry to `website/data/apps.json` (with its own `releaseTagPrefix`) and add `website/<id>/index.html` using the same `data-release-prefix` / `data-release-asset` attributes and a Reviews block (`data-reviews`).
 
 **Turn on GitHub Pages** (once):
 
@@ -152,8 +192,9 @@ src-tauri/resources/
   onnxruntime/            ONNX Runtime library (fetched by the script)
 scripts/                  fetch-deps (FFmpeg + ONNX Runtime + whisper.cpp), prepare-models.py
 tests/                    end-to-end UI test
-website/                  static site (home grid + Cutdeck page) for GitHub Pages
-.github/workflows/        release.yml (installers), pages.yml (the site)
+apps/bob-player/         Bob Player source (BobPlayer.cs)
+website/                  static site (home grid, Cutdeck, Bob Player) for GitHub Pages
+.github/workflows/        release.yml (Cutdeck), bob-player.yml (Bob Player), pages.yml (the site)
 ```
 
 ## Good to know
