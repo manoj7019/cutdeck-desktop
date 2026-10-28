@@ -46,21 +46,37 @@ jobs:
           $fw = $roots | Where-Object { Test-Path (Join-Path $_ "csc.exe") } | Select-Object -First 1
           if (-not $fw) { throw "Could not find .NET Framework csc.exe" }
           $csc = Join-Path $fw "csc.exe"
-          $wpf = Join-Path $fw "WPF"
-          foreach ($dll in @("PresentationCore.dll", "WindowsBase.dll", "System.Xaml.dll")) {
-            $path = Join-Path $wpf $dll
-            if (-not (Test-Path $path)) { throw "Missing WPF assembly $path" }
+          # windows-latest keeps PresentationCore.dll and WindowsBase.dll under WPF\,
+          # and System.Xaml.dll in the framework directory itself. Search both.
+          $dirs = @((Join-Path $fw "WPF"), $fw)
+          $refs = @{}
+          foreach ($name in @(
+            "System.dll",
+            "System.Drawing.dll",
+            "System.Windows.Forms.dll",
+            "PresentationCore.dll",
+            "WindowsBase.dll",
+            "System.Xaml.dll"
+          )) {
+            $found = $null
+            foreach ($dir in $dirs) {
+              $candidate = Join-Path $dir $name
+              if (Test-Path -LiteralPath $candidate) { $found = $candidate; break }
+            }
+            if (-not $found) { throw "Missing assembly $name. Looked in: $($dirs -join '; ')" }
+            Write-Host "$name -> $found"
+            $refs[$name] = $found
           }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $out = Join-Path (Get-Location) "dist\BobPlayer-windows-x64.exe"
           & $csc /nologo /utf8 /optimize+ /target:winexe /platform:x64 `
             "/out:$out" `
-            /r:System.dll `
-            /r:System.Drawing.dll `
-            /r:System.Windows.Forms.dll `
-            "/r:$(Join-Path $wpf 'PresentationCore.dll')" `
-            "/r:$(Join-Path $wpf 'WindowsBase.dll')" `
-            "/r:$(Join-Path $wpf 'System.Xaml.dll')" `
+            "/r:$($refs['System.dll'])" `
+            "/r:$($refs['System.Drawing.dll'])" `
+            "/r:$($refs['System.Windows.Forms.dll'])" `
+            "/r:$($refs['PresentationCore.dll'])" `
+            "/r:$($refs['WindowsBase.dll'])" `
+            "/r:$($refs['System.Xaml.dll'])" `
             "apps\bob-player\BobPlayer.cs"
           if ($LASTEXITCODE -ne 0) { throw "csc exited $LASTEXITCODE" }
 
