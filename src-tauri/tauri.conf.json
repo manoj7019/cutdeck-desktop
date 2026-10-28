@@ -25,10 +25,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "appimage", "nsis", "msi", "dmg", "app"],
     "category": "Video",
     "shortDescription": "Desktop video editor",
-    "longDescription": "Cutdeck is a desktop video editor with a timeline, 0.25x to 100x speed, filters, text, music, AI background removal and GPU-accelerated MP4 export.",
+    "longDescription": "Cutdeck is a desktop video editor with a timeline, 0.25x to 100x speed, on-device auto captions, video stabilization, filters, text, music, AI background removal and GPU-accelerated MP4 export.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +40,9 @@
       "binaries/cutdeck-ffmpeg",
       "binaries/cutdeck-ffprobe"
     ],
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

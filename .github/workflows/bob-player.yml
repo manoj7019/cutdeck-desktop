@@ -1,0 +1,124 @@
+name: Bob Player
+
+# Windows-only build of apps/bob-player/BobPlayer.cs.
+#
+# Publish: push a tag whose name starts with bobplayer-v, for example
+#   git tag bobplayer-v1.0.0 && git push origin bobplayer-v1.0.0
+# That tag is separate from Cutdeck's v* tags, so the two apps never share
+# one GitHub Release. releases/latest follows whichever app was published
+# last; the website does not use it for these downloads.
+#
+# Dry run (no GitHub Release): Actions → Bob Player → Run workflow.
+# windows-latest compiles with the .NET Framework csc
+# (/target:winexe /platform:x64, references PresentationCore, WindowsBase,
+# System.Xaml) and uploads the artifact bob-player-windows-x64. The
+# release job is skipped on workflow_dispatch because the ref is a branch,
+# not a bobplayer-v* tag.
+
+on:
+  push:
+    tags: ["bobplayer-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bob-player-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/bobplayer-v')
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile BobPlayer-windows-x64.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $roots = @(
+            (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319"),
+            (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319")
+          )
+          $fw = $roots | Where-Object { Test-Path (Join-Path $_ "csc.exe") } | Select-Object -First 1
+          if (-not $fw) { throw "Could not find .NET Framework csc.exe" }
+          $csc = Join-Path $fw "csc.exe"
+          $wpf = Join-Path $fw "WPF"
+          foreach ($dll in @("PresentationCore.dll", "WindowsBase.dll", "System.Xaml.dll")) {
+            $path = Join-Path $wpf $dll
+            if (-not (Test-Path $path)) { throw "Missing WPF assembly $path" }
+          }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $out = Join-Path (Get-Location) "dist\BobPlayer-windows-x64.exe"
+          & $csc /nologo /utf8 /optimize+ /target:winexe /platform:x64 `
+            "/out:$out" `
+            /r:System.dll `
+            /r:System.Drawing.dll `
+            /r:System.Windows.Forms.dll `
+            "/r:$(Join-Path $wpf 'PresentationCore.dll')" `
+            "/r:$(Join-Path $wpf 'WindowsBase.dll')" `
+            "/r:$(Join-Path $wpf 'System.Xaml.dll')" `
+            "apps\bob-player\BobPlayer.cs"
+          if ($LASTEXITCODE -ne 0) { throw "csc exited $LASTEXITCODE" }
+
+          # /target:winexe must be a 64-bit GUI image, so no console window opens.
+          $bytes = [System.IO.File]::ReadAllBytes($out)
+          if ($bytes.Length -lt 256 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+            throw "Output is not a PE executable"
+          }
+          $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
+          if ($machine -ne 0x8664) { throw "Expected x64 (0x8664), got 0x$('{0:X4}' -f $machine)" }
+          $magic = [BitConverter]::ToUInt16($bytes, $pe + 24)
+          if ($magic -ne 0x20B) { throw "Expected PE32+ (0x20B), got 0x$('{0:X4}' -f $magic)" }
+          $subsystem = [BitConverter]::ToUInt16($bytes, $pe + 24 + 68)
+          if ($subsystem -ne 2) { throw "Expected WINDOWS_GUI subsystem 2 (/target:winexe), got $subsystem" }
+          Write-Host "Built $out ($($bytes.Length) bytes), x64, no console window"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bob-player-windows-x64
+          path: dist/BobPlayer-windows-x64.exe
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/bobplayer-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bob-player-windows-x64
+          path: dist
+
+      - name: Checksum
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          test -f BobPlayer-windows-x64.exe
+          sha256sum BobPlayer-windows-x64.exe > SHA256SUMS.txt
+          ls -lh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Bob Player ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: dist/*
+          body: |
+            Bob Player ${{ github.ref_name }} for Windows.
+
+            | System | File |
+            | --- | --- |
+            | Windows 64-bit | `BobPlayer-windows-x64.exe` |
+
+            Windows only. There is no Mac or Linux build.
+
+            The file is one program. It needs .NET Framework 4.8, which is part of Windows 10 and 11. It is not code-signed. SmartScreen says Windows protected your PC: choose More info → Run anyway.
+
+            The playlist, last track, loop mode and volume are saved in `%AppData%\BobPlayer\playlist.txt`.
+
+            This tag (`bobplayer-v*`) is Bob Player's own release. Cutdeck stays on `v*` tags. Download buttons on the website ask GitHub for the newest release of each prefix, because `releases/latest` can only point at one app.

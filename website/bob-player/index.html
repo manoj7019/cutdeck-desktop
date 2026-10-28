@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bob Player — a tiny Windows music player</title>
+  <meta name="description" content="Bob Player is Manoj’s tiny Windows music player. A small always-on-top bar for the few songs he replays all day, with a playlist that is remembered, loop, and mouse-wheel volume.">
+  <meta name="author" content="Manoj">
+  <meta name="theme-color" content="#0e1116">
+  <link rel="canonical" href="https://manoj7019.github.io/cutdeck-desktop/bob-player/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Bob Player — a tiny Windows music player">
+  <meta property="og:description" content="A small floating bar for the same few songs. Windows only. Playlist, loop, and volume are remembered.">
+  <meta property="og:url" content="https://manoj7019.github.io/cutdeck-desktop/bob-player/">
+  <meta property="og:image" content="https://manoj7019.github.io/cutdeck-desktop/assets/bob-player-icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Bob Player — a tiny Windows music player">
+  <meta name="twitter:description" content="Windows only. A small bar for replaying the same few songs.">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../css/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Bob Player",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Windows",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "Manoj" },
+    "description": "A tiny Windows music player for people who replay the same few songs all day.",
+    "downloadUrl": "https://github.com/manoj7019/cutdeck-desktop/releases/download/bobplayer-v1.0.0/BobPlayer-windows-x64.exe"
+  }
+  </script>
+</head>
+<body data-page="bob-player" data-root="..">
+  <a class="skip" href="#download">Skip to download</a>
+  <header class="site-header wrap">
+    <a class="brand" href="../">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M3 2l7 4-7 4z" fill="currentColor"/></svg></span>
+      Bob Player
+    </a>
+    <nav class="nav" aria-label="Site">
+      <a class="quiet" href="../">All apps</a>
+      <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero" id="download">
+      <div class="wrap">
+        <p class="kicker">Windows only</p>
+        <h1>The same few songs, again.</h1>
+        <p class="lede">Manoj listens to the same three or four songs on repeat while he works. Sound of Ocean when he is thinking. Beethoven’s Für Elise while he reads. La Finta Giardiniera when a task is complicated and urgent. A tiny player is all he needs.</p>
+        <div class="hero-actions" data-release-repo="manoj7019/cutdeck-desktop" data-release-prefix="bobplayer-v">
+          <a class="btn primary" data-release-asset="BobPlayer-windows-x64.exe" href="https://github.com/manoj7019/cutdeck-desktop/releases/download/bobplayer-v1.0.0/BobPlayer-windows-x64.exe">Windows <small>64-bit</small></a>
+        </div>
+        <p class="fine">Windows only. One file, <code>BobPlayer-windows-x64.exe</code>. The button uses the newest <code>bobplayer-v*</code> release, so a newer Cutdeck release does not steal the link. Until that lookup runs, it points at <code>bobplayer-v1.0.0</code>. <a href="https://github.com/manoj7019/cutdeck-desktop/releases">All releases</a>.</p>
+        <div class="mini-player" aria-hidden="true">
+          <div>
+            <strong>Für Elise</strong>
+            <span>1:12 / 3:05 · 2 of 3</span>
+            <div class="mini-track"><i></i></div>
+          </div>
+          <div class="mini-controls">prev · play · next</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="featured-title">
+      <div class="wrap">
+        <p class="kicker">Featured</p>
+        <h2 id="featured-title">Small on purpose</h2>
+        <p class="intro">The whole program is a bar. These are the parts he actually uses.</p>
+        <div class="featured">
+          <article class="feature green">
+            <span class="tag">Bar</span>
+            <h3>Always a small floating bar</h3>
+            <p>No window frame and no maximize button. It opens about 520 by 92 pixels, parked at the bottom-right of the screen. Drag the bar to move it. The playlist can fold out under it, and fold away again.</p>
+          </article>
+          <article class="feature amber">
+            <span class="tag">Memory</span>
+            <h3>The list is still there tomorrow</h3>
+            <p>Songs you add, the last track, the loop mode, and the volume are written to a file in AppData and read back the next time the app opens. The files themselves stay where they already are on disk.</p>
+          </article>
+          <article class="feature">
+            <span class="tag">Loop</span>
+            <h3>Off, the list, or one song</h3>
+            <p>The loop button cycles three ways. Off plays through and stops after the last song. Loop playlist wraps around. Repeat one starts the current song again when it ends.</p>
+            <div class="modes" aria-hidden="true">
+              <div class="mode">Off</div>
+              <div class="mode on">Playlist</div>
+              <div class="mode">One song</div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rest-title">
+      <div class="wrap">
+        <p class="kicker">The rest of the player</p>
+        <h2 id="rest-title">Everything else it does</h2>
+        <div class="catalog">
+          <article class="block">
+            <h3>Open a song</h3>
+            <ul>
+              <li>Drop music or video files onto the bar, or use the open button.</li>
+              <li>The dialog allows several files at once. A path already in the list is not added twice.</li>
+              <li>The first time the list goes from empty to something, that first file starts playing.</li>
+            </ul>
+          </article>
+          <article class="block">
+            <h3>Playback</h3>
+            <ul>
+              <li>Previous, play or pause, and next. Previous and next wrap around the list.</li>
+              <li>Click the bar under the title to seek. It shows the position while a file is open.</li>
+              <li>The line under the title shows time, duration, and which song this is, like “2 of 4”.</li>
+              <li>Double-click a row in the playlist to play that file.</li>
+              <li>If Windows cannot open a file, the bar says “Can’t play this file”.</li>
+            </ul>
+          </article>
+          <article class="block">
+            <h3>Volume</h3>
+            <ul>
+              <li>Roll the mouse wheel over the window. Each notch moves the volume by 5%.</li>
+              <li>The subtitle shows the percent for a moment, then goes back to the time.</li>
+              <li>A new install starts at 80%. After that, the saved volume comes back.</li>
+            </ul>
+          </article>
+          <article class="block">
+            <h3>Playlist</h3>
+            <ul>
+              <li>A button folds the list open under the bar, and folds it away again.</li>
+              <li>The playing row is marked. Select a row and press Delete to remove it.</li>
+              <li>Deleting the song that is playing stops playback.</li>
+              <li>On the next launch, a saved path is skipped if the file is no longer there.</li>
+            </ul>
+          </article>
+          <article class="block">
+            <h3>Pin</h3>
+            <ul>
+              <li>The pin keeps the bar on top of other windows.</li>
+              <li>Unpin puts it back in the normal stack. Closing the app clears the pin; it is not saved with the playlist.</li>
+            </ul>
+          </article>
+          <article class="block">
+            <h3>Files it will open</h3>
+            <ul>
+              <li><strong>Audio:</strong> mp3, m4a, m4b, aac, wav, wma, flac, alac, ogg, opus, oga, aiff, aif, ac3, amr.</li>
+              <li><strong>Video containers, for the audio in them:</strong> mp4, mkv, mov, avi, webm, wmv, 3gp, mka. There is no picture. The bar only plays sound.</li>
+              <li>All files is in the dialog too. Playback goes through Windows’ own media stack, so a rare codec can still fail.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="install" aria-labelledby="install-title">
+      <div class="wrap">
+        <p class="kicker">Install</p>
+        <h2 id="install-title">First launch</h2>
+        <p class="intro">Windows only. Download the exe and run it. There is no setup wizard.</p>
+        <div class="notes">
+          <details open>
+            <summary>Windows SmartScreen</summary>
+            <p>The exe is not code-signed. SmartScreen says Windows protected your PC. Choose More info, then Run anyway.</p>
+            <p>It needs .NET Framework 4.8, which is already part of Windows 10 and 11. If Windows asks you to install it, do that, then open the exe again.</p>
+          </details>
+          <details>
+            <summary>Where the playlist is saved</summary>
+            <p><code>%AppData%\BobPlayer\playlist.txt</code> — usually <code>C:\Users\&lt;you&gt;\AppData\Roaming\BobPlayer\playlist.txt</code>. It stores the song paths, the last track, the loop mode, and the volume. Deleting that file starts you over.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="reviews" aria-labelledby="reviews-title">
+      <div class="wrap">
+        <p class="kicker">From people using it</p>
+        <h2 id="reviews-title">Reviews</h2>
+        <p class="intro">If Bob Player has been useful, leave a short review. A comment is enough. Use the reaction buttons on that comment as the rating.</p>
+        <div class="reviews-host" data-reviews>
+          <p class="placeholder" data-reviews-soon>Reviews opening soon. Turn on GitHub Discussions, install the giscus app, and put the repo id and category id in <code>website/data/site.json</code>. The steps are in the repository README.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section support-block" id="support" aria-labelledby="support-title">
+      <div class="wrap">
+        <p class="kicker">Optional</p>
+        <h2 id="support-title">Support my work</h2>
+        <p class="intro" data-support-blurb>Support is optional. The apps stay free either way, and it helps Manoj keep building them.</p>
+        <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
+        <p class="placeholder" data-support-note>Support link placeholder. Set <code>supportUrl</code> in <code>website/data/site.json</code> to a Buy Me a Coffee, Patreon, or any other page. The button label is <code>supportLabel</code>. This note hides when the URL no longer contains <code>REPLACE_ME</code>.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Bob Player is free. Windows only. <a href="https://github.com/manoj7019/cutdeck-desktop">Source and releases</a>.</p>
+    </div>
+  </footer>
+  <script src="../js/site.js"></script>
+</body>
+</html>

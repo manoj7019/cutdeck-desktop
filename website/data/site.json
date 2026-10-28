@@ -1,0 +1,16 @@
+{
+  "owner": "Manoj",
+  "supportUrl": "https://buymeacoffee.com/REPLACE_ME",
+  "supportLabel": "Support my work",
+  "supportBlurb": "Support is optional. The apps stay free either way, and it helps Manoj keep building them.",
+  "githubUser": "manoj7019",
+  "pagesUrl": "https://manoj7019.github.io/cutdeck-desktop/",
+  "giscus": {
+    "repo": "manoj7019/cutdeck-desktop",
+    "repoId": "REPLACE_ME",
+    "category": "Reviews",
+    "categoryId": "REPLACE_ME",
+    "mapping": "pathname",
+    "theme": "dark"
+  }
+}

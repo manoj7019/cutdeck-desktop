@@ -1,0 +1,255 @@
+name: Release
+
+# Push a tag like v0.1.0 to build macOS (Apple Silicon and Intel), Linux
+# (AppImage and .deb) and Windows, then attach stable-named installers to
+# that GitHub Release. Run it by hand from the Actions tab to produce the
+# files as artifacts without publishing a release.
+#
+# Keep this tag filter as v*. Bob Player publishes on bobplayer-v* from
+# bob-player.yml. A broader filter would put both apps on one release, and
+# releases/latest can only point at one of them.
+#
+# macOS builds are unsigned and not notarized. See README.md for the
+# Gatekeeper workaround and for the secrets that turn signing on later.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg,app
+          # macos-latest is Apple Silicon. Intel is cross-compiled on that
+          # runner (GitHub no longer offers macos-13 Intel runners).
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg,app
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libfuse2 \
+            file \
+            build-essential \
+            curl \
+            wget \
+            xz-utils \
+            unzip \
+            pkg-config \
+            libxdo-dev
+
+      - name: macOS build tools
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v cmake >/dev/null 2>&1; then
+            brew install cmake
+          fi
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> "$GITHUB_ENV"
+
+      - name: Use the tag as the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag must look like v1.2.3 (got ${GITHUB_REF_NAME})"
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const v = process.argv[1];
+            const confPath = "src-tauri/tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(confPath, "utf8"));
+            conf.version = v;
+            fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + "\n");
+            for (const p of ["package.json"]) {
+              const j = JSON.parse(fs.readFileSync(p, "utf8"));
+              j.version = v;
+              fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+            }
+            const cargo = "src-tauri/Cargo.toml";
+            fs.writeFileSync(cargo, fs.readFileSync(cargo, "utf8").replace(/^version = ".*"/m, `version = "${v}"`));
+          ' "$ver"
+
+      - name: Fetch FFmpeg, ONNX Runtime and whisper.cpp (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/fetch-deps.ps1 -Triple ${{ matrix.target }}
+
+      - name: Fetch FFmpeg, ONNX Runtime and whisper.cpp (macOS / Linux)
+        if: runner.os != 'Windows'
+        run: bash scripts/fetch-deps.sh ${{ matrix.target }}
+
+      - name: Rust tests
+        if: matrix.target != 'x86_64-apple-darwin'
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ff"
+          for f in binaries/cutdeck-ffmpeg-* binaries/cutdeck-ffprobe-*; do
+            [[ -e "$f" ]] || continue
+            base="$(basename "$f")"
+            name="${base#cutdeck-}"
+            name="${name%%-*}"
+            ext=""
+            [[ "$base" == *.exe ]] && ext=".exe"
+            cp "$f" "$RUNNER_TEMP/ff/${name}${ext}"
+          done
+          CUTDECK_FFMPEG_DIR="$RUNNER_TEMP/ff" cargo test --lib --target "${{ matrix.target }}"
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build installer
+        env:
+          # linuxdeploy is an AppImage. GitHub-hosted runners have no usable
+          # FUSE mount, so extract-and-run instead of failing the AppImage.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Collect installers under stable names
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          target="${{ matrix.target }}"
+          root="src-tauri/target/${target}/release/bundle"
+          shopt -s nullglob
+          copy_one() {
+            local dest="$1"
+            shift
+            local f
+            for f in "$@"; do
+              if [[ -f "$f" ]]; then
+                cp -f "$f" "dist/$dest"
+                return 0
+              fi
+            done
+            echo "Could not find $dest under $root" >&2
+            return 1
+          }
+          case "$target" in
+            x86_64-pc-windows-msvc)
+              copy_one Cutdeck-windows-x64-setup.exe "$root"/nsis/*-setup.exe "$root"/nsis/*.exe
+              copy_one Cutdeck-windows-x64.msi "$root"/msi/*.msi
+              ;;
+            aarch64-apple-darwin)
+              copy_one Cutdeck-macos-apple-silicon.dmg "$root"/dmg/*.dmg
+              ;;
+            x86_64-apple-darwin)
+              copy_one Cutdeck-macos-intel.dmg "$root"/dmg/*.dmg
+              ;;
+            x86_64-unknown-linux-gnu)
+              copy_one Cutdeck-linux-x86_64.AppImage "$root"/appimage/*.AppImage
+              copy_one Cutdeck-linux-amd64.deb "$root"/deb/*.deb
+              chmod +x dist/Cutdeck-linux-x86_64.AppImage
+              ;;
+            *)
+              echo "No rename rule for $target" >&2
+              exit 1
+              ;;
+          esac
+          ls -lh dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cutdeck-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cutdeck-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum * > SHA256SUMS.txt
+          ls -lh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Cutdeck ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: dist/*
+          body: |
+            Installers for Cutdeck ${{ github.ref_name }}. The file names stay the same every version. The website picks the newest `v*` release, so a Bob Player tag does not move these links.
+
+            | System | File |
+            | --- | --- |
+            | macOS Apple Silicon | `Cutdeck-macos-apple-silicon.dmg` |
+            | macOS Intel | `Cutdeck-macos-intel.dmg` |
+            | Linux AppImage | `Cutdeck-linux-x86_64.AppImage` |
+            | Linux deb (Ubuntu / Debian) | `Cutdeck-linux-amd64.deb` |
+            | Windows | `Cutdeck-windows-x64-setup.exe` (also `Cutdeck-windows-x64.msi`) |
+
+            These builds are not code-signed or notarized.
+
+            **macOS.** Gatekeeper will say the app is from an unidentified developer. Right-click Cutdeck → Open → Open. If it still will not open, in Terminal:
+
+            ```
+            xattr -dr com.apple.quarantine /Applications/Cutdeck.app
+            ```
+
+            **Windows.** SmartScreen shows "Windows protected your PC". Choose More info → Run anyway.
+
+            **Linux.** The AppImage needs no install (`chmod +x` then run it). The `.deb` pulls in WebKitGTK. FFmpeg, ONNX Runtime and the caption engine are bundled; speech models download on first use and stay on the computer.
+
+            To sign and notarize a later macOS build, add the Apple secrets described in the repository README. Unsigned builds are intentional until then.

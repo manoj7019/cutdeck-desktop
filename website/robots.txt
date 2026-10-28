@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://manoj7019.github.io/cutdeck-desktop/sitemap.xml
