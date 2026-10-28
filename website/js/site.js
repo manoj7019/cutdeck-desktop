@@ -3,7 +3,7 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document !== "undefined") api.boot();
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var REPO = "manoj7019/cutdeck-desktop";
+  var REPO = "manoj7019/manojhustler";
   
 
   function esc(value) {

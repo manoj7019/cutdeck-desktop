@@ -18,6 +18,15 @@
       "icon": "assets/bob-player-icon.png",
       "color": "#0f8a45",
       "platforms": ["Windows"]
+    },
+    {
+      "id": "readalong",
+      "name": "Readalong",
+      "description": "A PDF reader that reads aloud and highlights each word as it is spoken.",
+      "href": "readalong/",
+      "icon": "assets/readalong-icon.png",
+      "color": "#2040a0",
+      "platforms": ["Windows", "Mac"]
     }
   ]
 }

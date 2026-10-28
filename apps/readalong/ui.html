@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Readalong</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: a single reading column of white paper pages on a cool desk, with a docked player bar at the bottom. */
+:root{
+  --desk:#e7eaef; --desk-2:#dde1e8; --chrome:#f8f9fb; --ink:#1b2333; --muted:#5d6779;
+  --line:#cdd3dd; --accent:#2346a8; --accent-ink:#ffffff; --accent-soft:#e3e9f8;
+  --hl-word:rgba(255,193,7,.62); --hl-sent:rgba(66,120,255,.17); --hl-word-edge:#e0a800;
+  --paper-shadow:0 1px 2px rgba(20,30,50,.12),0 6px 22px rgba(20,30,50,.08);
+  --danger:#a8322a; --bar:0 -8px 30px rgba(20,30,50,.08);
+  --f-display:"Newsreader",Georgia,"Times New Roman",serif;
+  --f-ui:"Atkinson Hyperlegible","Segoe UI",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --desk:#13171f; --desk-2:#1a1f29; --chrome:#1c222d; --ink:#e7ebf2; --muted:#9aa4b6;
+  --line:#2e3644; --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#25304a;
+  --paper-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 26px rgba(0,0,0,.35); --danger:#ff8a80; --bar:0 -8px 30px rgba(0,0,0,.3); color-scheme:dark}}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--desk);color:var(--ink);font:15px/1.45 var(--f-ui);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto}
+
+.top{background:var(--chrome);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;gap:12px;padding:9px 16px}
+.brand{font-family:var(--f-display);font-weight:600;font-size:21px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;background:none;border:0;padding:0}
+.brand i{display:inline-block;width:14px;height:14px;border-radius:3px;background:var(--hl-word);box-shadow:inset 0 -3px 0 var(--hl-word-edge)}
+.fname{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--chrome);border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn svg{width:16px;height:16px}
+.zoom{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.zoom button{width:30px;height:30px;border:1px solid var(--line);background:var(--chrome);border-radius:7px;cursor:pointer}
+.zoom span{min-width:46px;text-align:center}
+
+#scroller{overflow:auto;position:relative}
+#pages{max-width:var(--pw,880px);margin:0 auto;display:flex;flex-direction:column;gap:22px;padding:28px 16px 40px}
+.page{position:relative;width:100%;background:#fff;box-shadow:var(--paper-shadow);border-radius:2px;cursor:text;overflow:hidden}
+.page img{position:absolute;inset:0;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
+.hl{position:absolute;inset:0;pointer-events:none}
+.hs,.hw{position:absolute;mix-blend-mode:multiply;border-radius:3px}
+.hs{background:var(--hl-sent)}
+.hw{background:var(--hl-word);box-shadow:inset 0 -2px 0 var(--hl-word-edge);transition:left .07s linear,top .07s linear,width .07s linear}
+@media (prefers-reduced-motion: reduce){.hw{transition:none}}
+.pnum{position:absolute;right:10px;bottom:8px;font-size:11px;color:#8a93a3;letter-spacing:.06em}
+
+.home{max-width:720px;margin:7vh auto 40px;padding:0 16px;display:flex;flex-direction:column;gap:22px}
+.home h1{font-family:var(--f-display);font-weight:500;font-size:clamp(32px,5vw,46px);line-height:1.06;margin:0;text-wrap:balance;letter-spacing:-.015em}
+.home h1 mark{background:linear-gradient(transparent 52%,var(--hl-word) 52%);color:inherit;padding:0 .08em}
+.home p{color:var(--muted);margin:0;max-width:56ch}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:26px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--desk-2)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.recent{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--chrome)}
+.book{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:12px 14px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;cursor:pointer}
+.book:first-child{border-top:0}
+.book:hover{background:var(--accent-soft)}
+.book b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.book small{color:var(--muted);font-variant-numeric:tabular-nums}
+.book .bar{width:90px;height:5px;border-radius:3px;background:var(--desk-2);overflow:hidden}
+.book .bar i{display:block;height:100%;background:var(--accent)}
+.book .x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:6px}
+.book .x:hover{background:var(--desk-2)}
+.book>div{min-width:0}
+.notice{max-width:880px;margin:22vh auto;text-align:center;color:var(--muted);padding:0 16px}
+
+.player{background:var(--chrome);border-top:1px solid var(--line);box-shadow:var(--bar);position:relative;z-index:5}
+.player-in{max-width:1180px;margin:0 auto;padding:10px 16px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:8px 18px;align-items:center}
+.transport{display:flex;align-items:center;gap:6px}
+.ib{width:38px;height:38px;border-radius:50%;border:1px solid transparent;background:transparent;display:grid;place-items:center;cursor:pointer}
+.ib:hover{background:var(--accent-soft)}
+.ib svg{width:20px;height:20px}
+.play{width:50px;height:50px;background:var(--accent);color:var(--accent-ink)}
+.play:hover{background:var(--accent);filter:brightness(1.08)}
+.play svg{width:22px;height:22px}
+.mid{min-width:0;display:flex;flex-direction:column;gap:4px}
+.status{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:0}
+.status span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.busy{color:var(--accent)} .err{color:var(--danger)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.opts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--desk-2)}
+.seg button{border:0;background:transparent;padding:5px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--chrome);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.speed{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.speed select{border:1px solid var(--line);background:var(--chrome);border-radius:8px;padding:5px 6px}
+@media (max-width:900px){.player-in{grid-template-columns:auto 1fr}.opts{grid-column:1/-1;justify-content:space-between}}
+
+.sheet{position:absolute;right:16px;bottom:calc(100% + 10px);width:min(380px,calc(100vw - 32px));background:var(--chrome);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(10,20,40,.22);padding:16px;display:flex;flex-direction:column;gap:14px;max-height:70vh;overflow:auto}
+.sheet h2{font-family:var(--f-display);font-weight:600;font-size:19px;margin:0}
+.voices{display:flex;flex-direction:column;gap:4px}
+.vo{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;border:1px solid transparent;border-radius:9px;padding:7px 10px;cursor:pointer;background:transparent;text-align:left}
+.vo:hover{background:var(--desk-2)}
+.vo[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.vo span{font-size:12px;color:var(--muted)}
+.vo .pv{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--chrome)}
+.check{display:flex;align-items:center;gap:8px;font-size:14px}
+.note{font-size:12.5px;color:var(--muted);line-height:1.45}
+.follow-btn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 12px)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div class="top-in">
+  <button class="brand" id="homeBtn" type="button" title="Library"><i></i>Readalong</button>
+  <div class="fname" id="fname"></div>
+  <div class="zoom" id="zoomBox" hidden><button type="button" id="zOut" aria-label="Zoom out">−</button><span id="zVal">100%</span><button type="button" id="zIn" aria-label="Zoom in">+</button></div>
+  <button class="btn primary" id="openBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14"/></svg>Open PDF</button>
+</div></header>
+
+<div id="scroller">
+  <section class="home" id="home">
+    <h1>Listen to any PDF while the <mark>words</mark> light up.</h1>
+    <p>A natural neural voice reads aloud and the page highlights each word and sentence exactly as it is spoken. Everything runs on this computer.</p>
+    <div class="drop" id="drop">
+      <div class="note">Drop a PDF on this window, or</div>
+      <button class="btn primary" id="openBtn2" type="button">Choose a PDF</button>
+    </div>
+    <div id="recentWrap" hidden>
+      <div class="lbl" style="margin-bottom:8px">Continue reading</div>
+      <div class="recent" id="recent"></div>
+    </div>
+  </section>
+  <div class="notice" id="notice" hidden></div>
+  <div id="pages"></div>
+</div>
+
+<footer class="player"><div class="player-in">
+  <button class="btn follow-btn" id="followBtn" type="button" hidden>Back to reading position</button>
+  <div class="transport">
+    <button class="ib" id="prevBtn" type="button" title="Previous sentence (←)" aria-label="Previous sentence"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+    <button class="ib play" id="playBtn" type="button" title="Play (Space)" aria-label="Play"><svg id="playIco" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15L20 12z"/></svg></button>
+    <button class="ib" id="nextBtn" type="button" title="Next sentence (→)" aria-label="Next sentence"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+  </div>
+  <div class="mid">
+    <div class="status"><span id="statusL">Open a PDF to begin</span><span id="statusR"></span></div>
+    <input type="range" id="seek" min="0" max="0" value="0" aria-label="Reading position">
+  </div>
+  <div class="opts">
+    <div class="seg" role="group" aria-label="Highlight">
+      <button type="button" data-hl="word">Word</button>
+      <button type="button" data-hl="sentence">Sentence</button>
+      <button type="button" data-hl="both">Both</button>
+      <button type="button" data-hl="off">Off</button>
+    </div>
+    <label class="speed"><span class="lbl">Speed</span>
+      <select id="rate"><option>0.75</option><option>0.9</option><option>1</option><option>1.1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option></select></label>
+    <button class="btn" id="voiceBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="voiceName">Voice</span></button>
+  </div>
+  <div class="sheet" id="sheet" hidden role="dialog" aria-label="Voice settings">
+    <h2>Voice</h2>
+    <div class="voices" id="voices"></div>
+    <label class="check"><input type="checkbox" id="follow" checked> Scroll to follow the reading position</label>
+    <div class="note" id="voiceNote">Running headers and page numbers are skipped automatically.</div>
+  </div>
+</div></footer>
+</div>
+
+<script>
+"use strict";
+const VOICES = [
+  ["af_heart","Heart","US · female · warm"],["af_bella","Bella","US · female · bright"],
+  ["af_nicole","Nicole","US · female · soft"],["af_sarah","Sarah","US · female"],
+  ["am_michael","Michael","US · male · calm"],["am_fenrir","Fenrir","US · male · deep"],
+  ["am_puck","Puck","US · male · lively"],["bf_emma","Emma","UK · female"],
+  ["bf_isabella","Isabella","UK · female"],["bm_george","George","UK · male"],
+  ["bm_fable","Fable","UK · male"],["bm_lewis","Lewis","UK · male"]
+];
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+let api = null;
+const S = { voice:"af_heart", rate:1, hl:"both", follow:true, zoom:1 };
+const D = { id:0, path:"", sizes:[], count:0, sent:null, pageStart:[], rects:{}, els:[], done:false };
+const P = { word:-1, playing:false, session:0, clip:null };
+const scroller = $("#scroller");
+
+/* ---------- boot ---------- */
+let booted = false;
+window.addEventListener("pywebviewready", boot);
+if(window.pywebview && window.pywebview.api) setTimeout(boot, 0);
+async function boot(){
+  if(booted) return; booted = true; api = window.pywebview.api;
+  try{ Object.assign(S, await api.get_settings() || {}); }catch(e){}
+  applySettingsUI();
+  showHome();
+  pollVoice();
+  const sp = await api.startup_path(); if(sp) openPath(sp);
+}
+function saveSettings(){ api && api.set_settings(S); }
+
+/* ---------- home / library ---------- */
+async function showHome(){
+  stopAll();
+  D.id = 0; D.done = false; $("#pages").innerHTML = ""; $("#notice").hidden = true;
+  $("#home").hidden = false; $("#zoomBox").hidden = true; $("#fname").textContent = "";
+  setStatus("Open a PDF to begin", ""); $("#seek").max = 0;
+  const list = await api.recent();
+  const box = $("#recent"); box.innerHTML = "";
+  $("#recentWrap").hidden = !list.length;
+  list.forEach(b => {
+    const row = document.createElement("div"); row.className = "book"; row.tabIndex = 0; row.setAttribute("role","button");
+    row.innerHTML = `<div><b></b><small></small></div><div class="bar"><i></i></div><button class="x" type="button" title="Remove from list" aria-label="Remove from list">×</button>`;
+    row.querySelector("b").textContent = b.name.replace(/\.pdf$/i,"");
+    row.querySelector("small").textContent = `Page ${b.page} of ${b.pages} · ${Math.round(b.pct*100)}% read`;
+    row.querySelector(".bar i").style.width = Math.round(b.pct*100) + "%";
+    row.onclick = e => { if(e.target.closest(".x")) return; openPath(b.path); };
+    row.onkeydown = e => { if(e.key === "Enter") openPath(b.path); };
+    row.querySelector(".x").onclick = async () => { await api.forget(b.path); row.remove(); if(!box.children.length) $("#recentWrap").hidden = true; };
+    box.append(row);
+  });
+}
+$("#homeBtn").onclick = () => { savePos(true); showHome(); };
+const choose = async () => { const p = await api.choose_file(); if(p) openPath(p); };
+$("#openBtn").onclick = choose; $("#openBtn2").onclick = choose;
+window.appOpenPath = p => openPath(p);
+let dragN = 0;
+addEventListener("dragenter", e => { e.preventDefault(); dragN++; $("#drop").classList.add("over"); });
+addEventListener("dragleave", () => { if(--dragN <= 0){ dragN = 0; $("#drop").classList.remove("over"); } });
+addEventListener("dragover", e => e.preventDefault());
+addEventListener("drop", e => { e.preventDefault(); dragN = 0; $("#drop").classList.remove("over"); });
+
+/* ---------- open ---------- */
+async function openPath(path){
+  stopAll(); savePos(true);
+  $("#home").hidden = true; $("#pages").innerHTML = ""; $("#notice").hidden = false; $("#notice").textContent = "Opening…";
+  const r = await api.open(path);
+  if(!r.ok){ $("#notice").textContent = "Couldn't open this file. " + r.error; return; }
+  Object.assign(D, { id:r.id, path:r.path, sizes:r.sizes, count:0, sent:null, pageStart:[], rects:{}, els:[], done:false });
+  P.word = r.resume || 0;
+  $("#fname").textContent = r.name; document.title = r.name.replace(/\.pdf$/i,"") + " · Readalong";
+  $("#notice").hidden = true; $("#zoomBox").hidden = false;
+  buildPages();
+  setBusy(`Preparing text · page 0 of ${D.sizes.length}`);
+  const id = D.id;
+  while(true){
+    const st = await api.index_status();
+    if(id !== D.id) return;
+    if(st.error){ setStatus("Couldn't read the text in this PDF: " + st.error, "", true); return; }
+    if(st.done) break;
+    setBusy(`Preparing text · page ${st.indexed} of ${st.total}`);
+    await sleep(120);
+  }
+  const m = await api.doc_map();
+  if(id !== D.id) return;
+  D.count = m.count; D.sent = Int32Array.from(m.sent); D.pageStart = m.pageStart; D.done = true;
+  if(!D.count){ setStatus("This PDF has no text layer (it may be a scan), so there is nothing to read aloud.", "", true); return; }
+  P.word = Math.min(Math.max(0, P.word), D.count - 1);
+  if(D.sent[P.word] < 0) P.word = nextReadable(P.word);
+  $("#seek").max = D.count - 1; $("#seek").value = P.word;
+  // fetch word boxes for pages already on screen
+  D.els.forEach((el, i) => { if(el._visible) loadRects(i); });
+  const resumed = P.word > 0;
+  await loadRects(pageOf(P.word)); paint(); jumpScroll(P.word, true);
+  setStatus(resumed ? "Picked up where you left off. Press play to continue." : "Ready. Press play or click any word to start.");
+  updateRight();
+}
+function nextReadable(w){ for(let j = w; j < D.count; j++) if(D.sent[j] >= 0) return j; for(let j = w; j >= 0; j--) if(D.sent[j] >= 0) return j; return 0; }
+
+/* ---------- pages ---------- */
+let io;
+function pageWidth(){ return Math.round(Math.min(scroller.clientWidth - 32, 880 * S.zoom)); }
+function buildPages(){
+  const wrap = $("#pages"); wrap.innerHTML = ""; D.els = [];
+  document.documentElement.style.setProperty("--pw", (880 * S.zoom + 32) + "px");
+  if(io) io.disconnect();
+  io = new IntersectionObserver(ents => ents.forEach(e => { const i = +e.target.dataset.i; e.target._visible = e.isIntersecting; if(e.isIntersecting){ renderPage(i); if(D.done) loadRects(i); } }), { root:scroller, rootMargin:"1400px 0px" });
+  D.sizes.forEach(([w, h], i) => {
+    const el = document.createElement("div"); el.className = "page"; el.dataset.i = i;
+    el.style.aspectRatio = `${w} / ${h}`;
+    const hl = document.createElement("div"); hl.className = "hl";
+    const n = document.createElement("span"); n.className = "pnum"; n.textContent = i + 1;
+    el.append(hl, n); wrap.append(el); el._hl = hl; el._px = 0;
+    el.addEventListener("click", ev => onPageClick(ev, i));
+    D.els.push(el); io.observe(el);
+  });
+  $("#zVal").textContent = Math.round(S.zoom * 100) + "%";
+}
+async function renderPage(i){
+  const el = D.els[i]; if(!el || el._loading) return;
+  const px = Math.round(el.clientWidth * Math.min(window.devicePixelRatio || 1, 2.5));
+  if(!px || Math.abs(el._px - px) < 4) return;
+  el._loading = true; const id = D.id;
+  try{
+    const r = await api.page(i, px);
+    if(id !== D.id || !r) return;
+    let img = el.querySelector("img");
+    if(!img){ img = document.createElement("img"); img.alt = ""; el.prepend(img); }
+    img.src = r.img; el._px = px;
+  }finally{ el._loading = false; }
+}
+const rectWait = {};
+async function loadRects(i){
+  if(D.rects[i] || !D.done || i < 0 || i >= D.sizes.length) return;
+  if(rectWait[i]) return rectWait[i];
+  const id = D.id;
+  rectWait[i] = api.page_rects(i).then(r => { if(id === D.id && r) D.rects[i] = r; delete rectWait[i]; });
+  await rectWait[i];
+  if(P.word >= 0 && pageOf(P.word) === i) paint();
+}
+function pageOf(w){ let lo = 0, hi = D.sizes.length - 1; const ps = D.pageStart; while(lo < hi){ const m = (lo + hi + 1) >> 1; if(ps[m] <= w) lo = m; else hi = m - 1; } return lo; }
+function wordRects(w){ const p = pageOf(w), r = D.rects[p]; if(!r) return null; return { p, rs: r.rects[w - r.start] || [] }; }
+let rT; addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(() => D.els.forEach((el, i) => el._visible && renderPage(i)), 200); });
+function setZoom(z){
+  const anchor = P.word; S.zoom = Math.max(0.6, Math.min(2.2, Math.round(z * 10) / 10)); saveSettings();
+  document.documentElement.style.setProperty("--pw", (880 * S.zoom + 32) + "px"); $("#zVal").textContent = Math.round(S.zoom * 100) + "%";
+  D.els.forEach(el => el._px = 0); setTimeout(() => { D.els.forEach((el, i) => el._visible && renderPage(i)); if(anchor >= 0) jumpScroll(anchor, true); }, 30);
+}
+$("#zIn").onclick = () => setZoom(S.zoom + 0.1); $("#zOut").onclick = () => setZoom(S.zoom - 0.1);
+
+function onPageClick(ev, i){
+  if(!D.done) return;
+  const sel = getSelection && String(getSelection()); if(sel) return;
+  const r = D.rects[i]; if(!r) return;
+  const b = D.els[i].getBoundingClientRect();
+  const x = (ev.clientX - b.left) / b.width, y = (ev.clientY - b.top) / b.height;
+  let best = -1, bd = Infinity;
+  r.rects.forEach((rs, k) => rs.forEach(q => {
+    const dx = x < q[0] ? q[0] - x : x > q[0] + q[2] ? x - q[0] - q[2] : 0;
+    const dy = y < q[1] ? q[1] - y : y > q[1] + q[3] ? y - q[1] - q[3] : 0;
+    const d = dx * 0.6 + dy * 2.5; if(d < bd){ bd = d; best = r.start + k; }
+  }));
+  if(best < 0 || bd > 0.06) return;
+  jumpTo(nextReadable(best), true);
+}
+
+/* ---------- highlight ---------- */
+let painted = new Set();
+function sentenceSpan(w){
+  const si = D.sent[w]; let a = w, b = w;
+  for(let j = w - 1, n = 0; j >= 0 && n < 600; j--, n++){ if(D.sent[j] === si) a = j; else if(D.sent[j] !== -1) break; }
+  for(let j = w + 1, n = 0; j < D.count && n < 600; j++, n++){ if(D.sent[j] === si) b = j; else if(D.sent[j] !== -1) break; }
+  return [a, b, si];
+}
+function lineRects(from, to, si){
+  const out = [];
+  for(let i = from; i <= to; i++){
+    if(si !== undefined && D.sent[i] !== si) continue;
+    const wr = wordRects(i); if(!wr) continue;
+    for(const r of wr.rs){
+      const L = out[out.length - 1];
+      if(L && L.p === wr.p && Math.abs(L.y - r[1]) < r[3] * 0.45 && r[0] >= L.x - 0.01 && r[0] - (L.x + L.w) < 0.06){
+        const y0 = Math.min(L.y, r[1]), y1 = Math.max(L.y + L.h, r[1] + r[3]);
+        L.w = Math.max(L.x + L.w, r[0] + r[2]) - L.x; L.y = y0; L.h = y1 - y0;
+      } else out.push({ p:wr.p, x:r[0], y:r[1], w:r[2], h:r[3] });
+    }
+  }
+  return out;
+}
+function box(cls, r, pad){
+  const el = D.els[r.p]; if(!el) return;
+  const [pw, ph] = D.sizes[r.p]; const px = pad / pw, py = pad / ph;
+  const d = document.createElement("div"); d.className = cls;
+  d.style.left = ((r.x - px) * 100) + "%"; d.style.top = ((r.y - py * 0.5) * 100) + "%";
+  d.style.width = ((r.w + 2 * px) * 100) + "%"; d.style.height = ((r.h + py) * 100) + "%";
+  el._hl.append(d); painted.add(r.p);
+}
+function paint(){
+  painted.forEach(p => D.els[p] && (D.els[p]._hl.innerHTML = "")); painted = new Set();
+  const w = P.word; if(!D.done || w < 0 || w >= D.count || S.hl === "off") return;
+  if(S.hl !== "word"){ const [a, b, si] = sentenceSpan(w); [pageOf(a), pageOf(b)].forEach(p => loadRects(p)); lineRects(a, b, si).forEach(r => box("hs", r, 2)); }
+  if(S.hl !== "sentence") lineRects(w, w).forEach(r => box("hw", r, 1.5));
+}
+let followPause = 0;
+function jumpScroll(w, instant){
+  const p = pageOf(w), el = D.els[p]; if(!el) return;
+  const wr = wordRects(w), y0 = wr && wr.rs[0] ? wr.rs[0][1] : 0;
+  const top = el.offsetTop + y0 * el.clientHeight - scroller.clientHeight * 0.36;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  scroller.scrollTo({ top, behavior: instant || reduce ? "auto" : "smooth" });
+}
+function follow(){
+  if(!S.follow || P.word < 0 || Date.now() < followPause) return;
+  const wr = wordRects(P.word); if(!wr || !wr.rs[0]) return;
+  const el = D.els[wr.p]; const b = el.getBoundingClientRect(), sb = scroller.getBoundingClientRect();
+  const y = b.top + wr.rs[0][1] * b.height - sb.top;
+  if(y < 60 || y > scroller.clientHeight - 90) jumpScroll(P.word, false);
+  $("#followBtn").hidden = true;
+}
+["wheel","touchmove"].forEach(ev => scroller.addEventListener(ev, () => { if(P.playing && S.follow){ followPause = Date.now() + 6000; $("#followBtn").hidden = false; } }, { passive:true }));
+$("#followBtn").onclick = () => { followPause = 0; jumpScroll(P.word, false); $("#followBtn").hidden = true; };
+
+let lastSave = 0;
+function setWord(i){
+  if(i === P.word) return;
+  P.word = i; paint(); follow(); $("#seek").value = i; updateRight();
+  if(Date.now() - lastSave > 5000) savePos();
+}
+function savePos(force){
+  if(!api || !D.done || P.word < 0 || !D.count) return;
+  lastSave = Date.now();
+  api.save_pos(P.word, pageOf(P.word) + 1, P.word / Math.max(1, D.count - 1));
+}
+
+/* ---------- status ---------- */
+function setStatus(l, r, err){ const s = $("#statusL"); s.textContent = l; s.className = err ? "err" : ""; if(r !== undefined) $("#statusR").textContent = r; }
+function setBusy(t){ const s = $("#statusL"); s.textContent = t; s.className = "busy"; }
+function updateRight(){
+  if(!D.count) return;
+  const w = Math.max(0, P.word), p = pageOf(w) + 1;
+  const left = (D.count - w) / (160 * S.rate);
+  const t = left < 1 ? "under a minute left" : left < 60 ? `${Math.round(left)} min left` : `${Math.floor(left/60)} h ${Math.round(left%60)} min left`;
+  $("#statusR").textContent = `Page ${p} of ${D.sizes.length} · ${t}`;
+}
+let voiceState = { state:"idle" };
+async function pollVoice(){
+  while(true){
+    try{ voiceState = await api.voice_status(); }catch(e){}
+    const v = voiceState;
+    if(v.state === "ready" || v.state === "error"){
+      if(v.state === "error") $("#voiceNote").innerHTML = `<span class="err">The voice couldn't load: ${escapeHtml(v.error)}. Check your internet connection for the one-time download, then restart Readalong.</span>`;
+      return;
+    }
+    if(P.playing || P.waiting) showVoiceProgress();
+    await sleep(400);
+  }
+}
+function showVoiceProgress(){
+  const v = voiceState;
+  if(v.state === "downloading") setBusy(`Downloading the voice (one time only) · ${Math.round(v.progress*100)}% of ${v.mb} MB`);
+  else if(v.state === "preparing") setBusy("Setting up the voice for word timing (one time only)…");
+  else if(v.state === "loading" || v.state === "idle") setBusy("Starting the voice…");
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- playback ---------- */
+const audio = new Audio(); audio.preservesPitch = true;
+let raf = 0, unlocked = false;
+function unlockAudio(){
+  if(unlocked) return; unlocked = true;
+  // a silent sample started inside the click keeps later async playback allowed
+  audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABAAZGF0YQAAAAA=";
+  audio.play().catch(()=>{});
+}
+function b64ToUrl(b64){ const bin = atob(b64), u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u], { type:"audio/wav" })); }
+function setPlaying(on){
+  P.playing = on;
+  $("#playIco").innerHTML = on ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4.5v15L20 12z"/>';
+  $("#playBtn").setAttribute("aria-label", on ? "Pause" : "Play"); $("#playBtn").title = on ? "Pause (Space)" : "Play (Space)";
+}
+function halt(){
+  P.session++; cancelAnimationFrame(raf); P.waiting = false;
+  if(P.clip){ P.clip.resolve && P.clip.resolve(false); if(P.clip.url) URL.revokeObjectURL(P.clip.url); P.clip = null; }
+  audio.onended = null; try{ audio.pause(); }catch(e){}
+}
+function stopAll(){ halt(); setPlaying(false); api && api.cancel(); }
+
+function playClip(r, sess){
+  return new Promise(resolve => {
+    const url = b64ToUrl(r.wav);
+    P.clip = { r, url, resolve };
+    audio.src = url; audio.playbackRate = S.rate; audio.preservesPitch = true;
+    audio.onended = () => { if(sess !== P.session) return; cancelAnimationFrame(raf); URL.revokeObjectURL(url); P.clip = null; resolve(true); };
+    audio.play().then(() => {
+      const tick = () => {
+        if(sess !== P.session) return;
+        const t = audio.currentTime; const st = r.start; let k = 0;
+        while(k < st.length - 1 && st[k + 1] <= t) k++;
+        setWord(r.words[k]);
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }).catch(err => { if(sess === P.session){ setStatus("Audio couldn't start: " + err.message, undefined, true); setPlaying(false); resolve(false); } });
+  });
+}
+
+async function startAt(w){
+  if(!D.done || !D.count) return;
+  halt(); api.cancel();
+  const sess = P.session; setPlaying(true); followPause = 0;
+  setWord(w); paint(); jumpScroll(w, false);
+  let cur = w;
+  while(sess === P.session){
+    P.waiting = true;
+    if(voiceState.state !== "ready") showVoiceProgress(); else setBusy("Preparing audio…");
+    const t0 = Date.now();
+    const r = await api.speak(cur, S.voice, D.id);
+    if(sess !== P.session) return;
+    P.waiting = false;
+    if(r.error){
+      if(r.error === "stale" || r.error === "dropped") return;
+      setStatus("Couldn't generate speech: " + r.error, undefined, true); setPlaying(false); return;
+    }
+    if(r.finished){ setPlaying(false); setStatus("Finished reading the document."); return; }
+    setStatus("Reading aloud");
+    const ok = await playClip(r, sess);
+    if(!ok || sess !== P.session) return;
+    if(r.next < 0){ setPlaying(false); setStatus("Finished reading the document."); savePos(true); return; }
+    cur = r.next;
+  }
+}
+function togglePlay(){
+  if(!D.done){ if(!D.id) choose(); return; }
+  unlockAudio();
+  if(P.playing){
+    if(P.clip && !audio.paused){ audio.pause(); setPlaying(false); setStatus("Paused"); savePos(true); return; }
+    halt(); setPlaying(false); setStatus("Paused"); return;
+  }
+  if(P.clip && audio.paused && audio.currentTime > 0 && !audio.ended){
+    setPlaying(true); audio.playbackRate = S.rate; audio.play().catch(()=>{}); setStatus("Reading aloud"); return;
+  }
+  startAt(nextReadable(Math.max(0, P.word)));
+}
+function jumpTo(w, play){
+  unlockAudio();
+  if(play || P.playing) startAt(w);
+  else { halt(); setWord(w); paint(); }
+}
+function stepSentence(dir){
+  if(!D.done || !D.count) return;
+  const [a, , si] = sentenceSpan(Math.max(0, P.word));
+  let target;
+  if(dir < 0){
+    if(P.word - a > 2 || si === 0) target = a;
+    else { let j = a - 1; while(j > 0 && D.sent[j] < 0) j--; target = sentenceSpan(Math.max(0, j))[0]; }
+  } else { let j = sentenceSpan(P.word)[1] + 1; while(j < D.count && D.sent[j] < 0) j++; if(j >= D.count) return; target = j; }
+  const wasPlaying = P.playing;
+  if(wasPlaying) startAt(target); else { halt(); setWord(target); paint(); follow(); }
+}
+
+/* ---------- controls ---------- */
+$("#playBtn").onclick = togglePlay;
+$("#prevBtn").onclick = () => stepSentence(-1);
+$("#nextBtn").onclick = () => stepSentence(1);
+$("#seek").addEventListener("input", e => { const i = +e.target.value; if(D.count) $("#statusR").textContent = `Page ${pageOf(i) + 1} of ${D.sizes.length}`; });
+$("#seek").addEventListener("change", async e => { const i = nextReadable(+e.target.value); const [a] = sentenceSpan(i); await loadRects(pageOf(a)); jumpScroll(a, true); jumpTo(a, P.playing); });
+
+function applySettingsUI(){
+  $$(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.hl === S.hl)));
+  $("#rate").value = String(S.rate); if(!$("#rate").value) $("#rate").value = "1";
+  $("#follow").checked = S.follow;
+  const v = VOICES.find(x => x[0] === S.voice) || VOICES[0]; S.voice = v[0];
+  $("#voiceName").textContent = v[1];
+  $$(".vo").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === S.voice)));
+}
+$$(".seg button").forEach(b => b.onclick = () => { S.hl = b.dataset.hl; saveSettings(); applySettingsUI(); paint(); });
+$("#rate").onchange = e => { S.rate = +e.target.value; saveSettings(); audio.playbackRate = S.rate; updateRight(); };
+$("#follow").onchange = e => { S.follow = e.target.checked; saveSettings(); if(S.follow){ followPause = 0; follow(); } };
+VOICES.forEach(([id, name, desc]) => {
+  const b = document.createElement("div"); b.className = "vo"; b.dataset.v = id; b.tabIndex = 0; b.setAttribute("role","button");
+  b.innerHTML = `<div><b></b><br><span></span></div><button class="pv" type="button">Play sample</button>`;
+  b.querySelector("b").textContent = name; b.querySelector("span").textContent = desc;
+  b.onclick = e => {
+    if(e.target.closest(".pv")) return;
+    S.voice = id; saveSettings(); applySettingsUI();
+    if(P.playing) startAt(P.word);
+  };
+  b.querySelector(".pv").onclick = () => sample(id, b.querySelector(".pv"));
+  $("#voices").append(b);
+});
+const sampleAudio = new Audio();
+async function sample(id, btn){
+  sampleAudio.play().catch(()=>{});
+  const old = btn.textContent; btn.textContent = voiceState.state === "ready" ? "Making…" : "Loading…"; btn.disabled = true;
+  try{
+    const r = await api.sample(id);
+    if(r.error) throw new Error(r.error);
+    sampleAudio.src = b64ToUrl(r.wav); sampleAudio.playbackRate = S.rate; await sampleAudio.play();
+  }catch(e){ $("#voiceNote").innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`; }
+  btn.textContent = old; btn.disabled = false;
+}
+applySettingsUI();
+$("#voiceBtn").onclick = e => { e.stopPropagation(); $("#sheet").hidden = !$("#sheet").hidden; };
+document.addEventListener("click", e => { if(!$("#sheet").hidden && !$("#sheet").contains(e.target) && !$("#voiceBtn").contains(e.target)) $("#sheet").hidden = true; });
+
+addEventListener("keydown", e => {
+  if(e.target.closest && e.target.closest("input,select,textarea")) return;
+  if(e.code === "Space"){ e.preventDefault(); togglePlay(); }
+  else if(e.key === "ArrowRight"){ e.preventDefault(); stepSentence(1); }
+  else if(e.key === "ArrowLeft"){ e.preventDefault(); stepSentence(-1); }
+  else if(e.key === "Escape"){ $("#sheet").hidden = true; }
+  else if((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")){ e.preventDefault(); setZoom(S.zoom + 0.1); }
+  else if((e.ctrlKey || e.metaKey) && e.key === "-"){ e.preventDefault(); setZoom(S.zoom - 0.1); }
+  else if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o"){ e.preventDefault(); choose(); }
+});
+addEventListener("beforeunload", () => savePos(true));
+</script>
+</body>
+</html>
