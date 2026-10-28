@@ -143,7 +143,34 @@ jobs:
             [[ "$base" == *.exe ]] && ext=".exe"
             cp "$f" "$RUNNER_TEMP/ff/${name}${ext}"
           done
-          CUTDECK_FFMPEG_DIR="$RUNNER_TEMP/ff" cargo test --lib --target "${{ matrix.target }}"
+          export CUTDECK_FFMPEG_DIR="$RUNNER_TEMP/ff"
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            # ONNX Runtime aborts in a C++ static destructor after the harness
+            # has already printed "test result: ok", and cargo exits 101. The
+            # Apple Silicon job still has to pass: any real failure (a FAILED
+            # summary, or no success summary) fails this step, and the disk
+            # image is still built afterwards. Linux and Windows keep cargo's
+            # own exit code.
+            log="$RUNNER_TEMP/cargo-test.log"
+            set +e
+            set +o pipefail
+            cargo test --color never --lib --target "${{ matrix.target }}" -- --color never 2>&1 | tee "$log"
+            set -o pipefail
+            set -e
+            if grep -q '^test result: FAILED' "$log"; then
+              echo "Rust tests failed"
+              exit 1
+            fi
+            if ! grep -q '^test result: ok\.' "$log"; then
+              echo "Rust tests did not finish with 'test result: ok'"
+              exit 1
+            fi
+            if grep -q 'mutex lock failed' "$log"; then
+              echo "Tests passed. Ignoring the ONNX Runtime shutdown abort that follows 'test result: ok'."
+            fi
+          else
+            cargo test --lib --target "${{ matrix.target }}"
+          fi
 
       - name: Install npm dependencies
         run: npm install
@@ -207,7 +234,11 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # A failed matrix leg skips this job unless the condition uses a status
+    # function. Publish the installers that did build. Skip when nothing was
+    # produced, and skip on a cancelled run. workflow_dispatch is not a v* tag,
+    # so it still only uploads artifacts.
+    if: ${{ always() && !cancelled() && startsWith(github.ref, 'refs/tags/v') && (needs.build.result == 'success' || needs.build.result == 'failure') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -215,6 +246,7 @@ jobs:
           pattern: cutdeck-*
           merge-multiple: true
           path: dist
+          if-no-files-found: error
 
       - name: Checksums
         working-directory: dist
@@ -230,7 +262,7 @@ jobs:
           prerelease: false
           files: dist/*
           body: |
-            Installers for Cutdeck ${{ github.ref_name }}. The file names stay the same every version. The website picks the newest `v*` release, so a Bob Player tag does not move these links.
+            Installers for Cutdeck ${{ github.ref_name }} that this run produced. The file names stay the same every version. The website picks the newest `v*` release, so a Bob Player tag does not move these links. A platform missing from the files below means that job failed.
 
             | System | File |
             | --- | --- |
