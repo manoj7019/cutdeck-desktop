@@ -22,7 +22,7 @@ Reviews use giscus (GitHub Discussions). Enable Discussions on the repo, make a 
 1. Add a 256×256 icon to `assets/`.
 2. Add an entry to `data/apps.json` (and the same card to `index.html` so it shows up without JavaScript too).
 3. Copy `cutdeck/` to a new folder named after the app's `id` and edit the text, colours (`body[data-page="…"]` in `css/site.css`) and download links.
-4. Give the app its own release tag prefix (like `bobplayer-v`). Download buttons use `data-release-prefix` + `data-release-asset` to point at the newest matching GitHub Release automatically; the `href` is only the fallback.
+4. Give the app its own release tag prefix (like `bobplayer-v` or `readalong-v`). Download buttons use `data-release-prefix` + `data-release-asset` to point at the newest matching GitHub Release automatically; the `href` is only the fallback.
 5. Add the page to `sitemap.xml`.
 
 ## Rename the site

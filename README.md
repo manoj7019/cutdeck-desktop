@@ -68,7 +68,7 @@ Until those are set, leave them unset. An empty identity makes the build try to 
 
 1. Match `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json` if you want the tag to agree with the repo (the workflow also writes the tag version into those files on the runner).
 2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
-3. The **Release** workflow (`.github/workflows/release.yml`) builds Windows, macOS Apple Silicon, macOS Intel (cross-compiled on the Apple Silicon runner) and Linux, runs the Rust tests, and publishes a GitHub Release with the installers above. Keep Cutdeck tags as `v*` (for example `v0.1.0`). Bob Player uses `bobplayer-v*` so the two apps are never the same release.
+3. The **Release** workflow (`.github/workflows/release.yml`) builds Windows, macOS Apple Silicon, macOS Intel (cross-compiled on the Apple Silicon runner) and Linux, runs the Rust tests, and publishes a GitHub Release with the installers above. Keep Cutdeck tags as `v*` (for example `v0.1.0`). Bob Player uses `bobplayer-v*` and Readalong uses `readalong-v*`, so the apps are never the same release.
 4. To build without publishing, open Actions → Release → Run workflow. The installers are artifacts on that run.
 
 ## Bob Player
@@ -101,21 +101,37 @@ $fw = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
 
 Windows only. The program needs .NET Framework 4.8, which Windows 10 and 11 already include. It is unsigned: SmartScreen → More info → Run anyway. The playlist is `%AppData%\BobPlayer\playlist.txt`.
 
+## Readalong
+
+Readalong is a desktop PDF reader for Windows and Mac. It reads a PDF aloud with a natural neural voice (Kokoro on ONNX, on the computer) and highlights each word and sentence as it is spoken. The source Manoj supplied is `apps/readalong/` and is zipped as-is. Do not treat it as a built installer.
+
+**Cut a Readalong release**
+
+```bash
+git tag readalong-v1.0.0 && git push origin readalong-v1.0.0
+```
+
+`.github/workflows/readalong.yml` zips that folder to `Readalong.zip` (top-level directory `Readalong/`, with `Readalong.command` executable) and publishes it on the tag. The site buttons use the prefix `readalong-v` and the asset `Readalong.zip`.
+
+**Dry run, no release:** Actions → Readalong → Run workflow. The zip is the artifact `readalong-zip`.
+
+**First run, from `apps/readalong/README.txt`:** unzip somewhere permanent. On Windows, double-click `Readalong.bat` (optional: `Create desktop shortcut.bat`). On Mac, double-click `Readalong.command`; if macOS blocks it, right-click, choose Open, then Open again. Setup is about 250 MB and a few minutes. The voice downloads once (120 MB) the first time you press play.
+
 ## Website (GitHub Pages)
 
-The public site lives in `website/`. The home page is a grid of apps from `website/data/apps.json`. Cutdeck’s product page is `website/cutdeck/index.html`. Bob Player’s is `website/bob-player/index.html`.
+The public site lives in `website/`. The home page is a grid of apps from `website/data/apps.json`. Cutdeck’s product page is `website/cutdeck/index.html`. Bob Player’s is `website/bob-player/index.html`. Readalong’s is `website/readalong/index.html`.
 
-**Downloads:** `releases/latest/download` always follows the single newest release in the repo. After both apps ship, that would be whichever tag was pushed last. The buttons call `https://api.github.com/repos/manoj7019/cutdeck-desktop/releases?per_page=100` and pick the newest release whose tag starts with that app’s prefix (`v` for Cutdeck, `bobplayer-v` for Bob Player) and which contains the asset name. The static href is the fallback tag (`v0.1.0` or `bobplayer-v1.0.0`) for when that request has not run.
+**Downloads:** `releases/latest/download` always follows the single newest release in the repo. After more than one app ships, that would be whichever tag was pushed last. The buttons call `https://api.github.com/repos/manoj7019/manojhustler/releases?per_page=100` and pick the newest release whose tag starts with that app’s prefix (`v` for Cutdeck, `bobplayer-v` for Bob Player, `readalong-v` for Readalong) and which contains the asset name. The static href is the fallback tag (`v0.1.0`, `bobplayer-v1.0.0`, or `readalong-v1.0.0`) for when that request has not run.
 
-**Support link:** edit `supportUrl` in `website/data/site.json`. It starts as `https://buymeacoffee.com/REPLACE_ME`. Put a Buy Me a Coffee, Patreon, or any other URL there. `supportLabel` is the button text (default “Support my work”). `supportBlurb` is the line under the heading. While the URL contains `REPLACE_ME`, the site shows a placeholder note.
+**Support:** fill in `support` in `website/data/site.json` (UPI id, Ko-fi, GitHub Sponsors, Patreon). Blank ones stay hidden. `website/README.md` has the field list.
 
-**Reviews:** each app page has a Reviews section backed by [giscus](https://giscus.app) (GitHub Discussions). Until `giscus.repoId` and `giscus.categoryId` in `website/data/site.json` are real ids, the section says “Reviews opening soon.”
+**Reviews:** each app page has a Reviews section backed by [giscus](https://giscus.app) (GitHub Discussions). The section stays hidden until `giscus.repoId` and `giscus.categoryId` in `website/data/site.json` are set.
 
 1. On the repo: **Settings → General → Features → Discussions**. Save.
 2. Open the **Discussions** tab, edit categories, and add one named `Reviews` with the open-ended discussion format (not Announcements, which only lets maintainers start threads).
-3. Install the giscus GitHub App: <https://github.com/apps/giscus>. Grant it `manoj7019/cutdeck-desktop`.
-4. Open <https://giscus.app>. Repository: `manoj7019/cutdeck-desktop`. Mapping: **pathname**. Category: **Reviews**. Reactions: on. The generated script shows `data-repo-id` (starts with `R_`) and `data-category-id` (starts with `DIC_`).
-5. Paste those into `giscus.repoId` and `giscus.categoryId` in `website/data/site.json`. Commit to `master`. The placeholder hides and the comment box loads. Discussions are keyed by the page path, so Cutdeck and Bob Player stay separate. The repo needs to be public.
+3. Install the giscus GitHub App: <https://github.com/apps/giscus>. Grant it `manoj7019/manojhustler`.
+4. Open <https://giscus.app>. Repository: `manoj7019/manojhustler`. Mapping: **pathname**. Category: **Reviews**. Reactions: on. The generated script shows `data-repo-id` (starts with `R_`) and `data-category-id` (starts with `DIC_`).
+5. Paste those into `giscus.repoId` and `giscus.categoryId` in `website/data/site.json`. Commit to `master`. The placeholder hides and the comment box loads. Discussions are keyed by the page path, so each app stays separate. The repo needs to be public.
 
 **Add another app:** append an entry to `website/data/apps.json` (with its own `releaseTagPrefix`) and add `website/<id>/index.html` using the same `data-release-prefix` / `data-release-asset` attributes and a Reviews block (`data-reviews`).
 
@@ -123,7 +139,7 @@ The public site lives in `website/`. The home page is a grid of apps from `websi
 
 1. Merge this to `master`.
 2. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. The **GitHub Pages** workflow (`.github/workflows/pages.yml`) deploys `website/` on pushes to `master` that touch the site. The site is `https://manoj7019.github.io/cutdeck-desktop/`.
+3. The **GitHub Pages** workflow (`.github/workflows/pages.yml`) deploys `website/` on pushes to `master` that touch the site. The site is `https://manoj7019.github.io/manojhustler/`.
 
 Canonical URLs in the HTML use that address. If you add a custom domain, update them and `pagesUrl` in `website/data/site.json`.
 
@@ -193,8 +209,9 @@ src-tauri/resources/
 scripts/                  fetch-deps (FFmpeg + ONNX Runtime + whisper.cpp), prepare-models.py
 tests/                    end-to-end UI test
 apps/bob-player/         Bob Player source (BobPlayer.cs)
-website/                  static site (home grid, Cutdeck, Bob Player) for GitHub Pages
-.github/workflows/        release.yml (Cutdeck), bob-player.yml (Bob Player), pages.yml (the site)
+apps/readalong/          Readalong source, zipped as-is for Windows and Mac
+website/                  static site (home grid, Cutdeck, Bob Player, Readalong) for GitHub Pages
+.github/workflows/        release.yml (Cutdeck), bob-player.yml, readalong.yml, pages.yml (the site)
 ```
 
 ## Good to know

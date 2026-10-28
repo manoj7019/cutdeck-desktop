@@ -40,9 +40,11 @@
 /* Per-app colour, set on <body> */
 body[data-page="cutdeck"] { --accent: #1f6fd1; --tint: #e3effc; }
 body[data-page="bob-player"] { --accent: #0f8a45; --tint: #e2f4e9; }
+body[data-page="readalong"] { --accent: #2040a0; --tint: #e4e8f6; }
 @media (prefers-color-scheme: dark) {
   body[data-page="cutdeck"] { --accent: #5ab4f5; --accent-ink: #04202c; --tint: #142636; }
   body[data-page="bob-player"] { --accent: #2fd27a; --accent-ink: #04210f; --tint: #13281d; }
+  body[data-page="readalong"] { --accent: #8aa4ff; --accent-ink: #0c1230; --tint: #1a2240; }
 }
 
 * { box-sizing: border-box; }
@@ -91,7 +93,7 @@ p { margin: 0; }
 
 /* Home hero */
 .hero { padding: 56px 0 44px; }
-.hero h1 { font-size: clamp(40px, 7.4vw, 76px); line-height: 1.02; letter-spacing: -0.045em; max-width: 13ch; }
+.hero h1 { font-size: clamp(32px, 5.6vw, 56px); line-height: 1.02; letter-spacing: -0.045em; max-width: 14ch; }
 .hero h1 span { color: var(--muted); display: block; }
 .hero .lede { margin-top: 22px; font-size: 19px; color: var(--muted); max-width: 46ch; }
 

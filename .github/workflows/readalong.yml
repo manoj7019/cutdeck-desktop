@@ -1,0 +1,91 @@
+name: Readalong
+
+# Zip apps/readalong as Readalong.zip (top-level folder Readalong/) and
+# publish it on tags named readalong-v*, for example readalong-v1.0.0.
+# That tag is separate from Cutdeck's v* tags and Bob Player's bobplayer-v*
+# tags. workflow_dispatch builds the zip as an artifact and does not publish.
+
+on:
+  push:
+    tags: ["readalong-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: readalong-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/readalong-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip Readalong
+        run: |
+          set -euo pipefail
+          stage="${RUNNER_TEMP}/stage"
+          rm -rf "$stage"
+          mkdir -p "$stage" dist
+          cp -a apps/readalong "$stage/Readalong"
+          chmod +x "$stage/Readalong/Readalong.command"
+          # No -X: the default zip on Linux keeps the Unix mode, so the
+          # executable bit on Readalong.command survives unzip on a Mac.
+          (cd "$stage" && zip -r "$GITHUB_WORKSPACE/dist/Readalong.zip" Readalong)
+          python3 - << 'PY'
+          import zipfile
+          z = zipfile.ZipFile("dist/Readalong.zip")
+          names = z.namelist()
+          assert names, "zip is empty"
+          assert all(n == "Readalong" or n.startswith("Readalong/") for n in names), names
+          cmd = "Readalong/Readalong.command"
+          assert cmd in names, names
+          mode = z.getinfo(cmd).external_attr >> 16
+          if mode & 0o111 == 0:
+              raise SystemExit(f"Readalong.command is not executable in the zip (mode {oct(mode)})")
+          print(f"{cmd} mode {oct(mode)}")
+          PY
+          (cd dist && sha256sum Readalong.zip > SHA256SUMS.txt && ls -lh)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readalong-zip
+          path: |
+            dist/Readalong.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/readalong-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: readalong-zip
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Readalong ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: dist/*
+          body: |
+            Readalong ${{ github.ref_name }} for Windows and Mac.
+
+            | System | File |
+            | --- | --- |
+            | Windows and Mac | `Readalong.zip` |
+
+            Unzip it and keep the `Readalong` folder somewhere permanent.
+
+            **Windows.** Double-click `Readalong.bat`. The first run sets everything up (a few minutes, about 250 MB). The first time you press play, the voice downloads once (120 MB). Optional: double-click `Create desktop shortcut.bat`.
+
+            **Mac.** Double-click `Readalong.command`. If macOS blocks it, right-click it, choose Open, then Open again.
+
+            This tag (`readalong-v*`) is Readalong's own release. Cutdeck stays on `v*` tags and Bob Player on `bobplayer-v*`.

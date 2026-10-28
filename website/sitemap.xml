@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://manoj7019.github.io/cutdeck-desktop/</loc>
+    <loc>https://manoj7019.github.io/manojhustler/</loc>
   </url>
   <url>
-    <loc>https://manoj7019.github.io/cutdeck-desktop/cutdeck/</loc>
+    <loc>https://manoj7019.github.io/manojhustler/cutdeck/</loc>
   </url>
   <url>
-    <loc>https://manoj7019.github.io/cutdeck-desktop/bob-player/</loc>
+    <loc>https://manoj7019.github.io/manojhustler/bob-player/</loc>
+  </url>
+  <url>
+    <loc>https://manoj7019.github.io/manojhustler/readalong/</loc>
   </url>
 </urlset>
