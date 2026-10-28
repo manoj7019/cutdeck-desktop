@@ -3,89 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manoj — free desktop apps</title>
-  <meta name="description" content="Free desktop apps by Manoj. Cutdeck is a video editor for macOS, Linux and Windows. Bob Player is a tiny Windows music player for replaying a few songs.">
+  <title>ManojHustler — free apps by Manoj</title>
+  <meta name="description" content="Small desktop apps Manoj built for his own use, free for anyone. Cutdeck, a video editor, and Bob Player, a tiny music player.">
   <meta name="author" content="Manoj">
-  <meta name="theme-color" content="#0e1116">
+  <meta name="theme-color" content="#f3f5f8">
   <link rel="canonical" href="https://manoj7019.github.io/cutdeck-desktop/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Manoj — free desktop apps">
-  <meta property="og:description" content="Free desktop apps by Manoj. Cutdeck edits video on your computer. Bob Player loops a few songs on Windows.">
+  <meta property="og:title" content="ManojHustler — free apps by Manoj">
+  <meta property="og:description" content="Small desktop apps, free for anyone. No sign-up, no ads.">
   <meta property="og:url" content="https://manoj7019.github.io/cutdeck-desktop/">
   <meta property="og:image" content="https://manoj7019.github.io/cutdeck-desktop/assets/cutdeck-icon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Manoj — free desktop apps">
-  <meta name="twitter:description" content="Free desktop apps by Manoj. Cutdeck, and Bob Player for Windows.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/site.css">
 </head>
 <body data-page="home" data-root=".">
   <a class="skip" href="#apps">Skip to apps</a>
-  <header class="site-header wrap">
-    <a class="brand" href="./">
-      <span class="mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M3 2l7 4-7 4z" fill="currentColor"/></svg></span>
-      Manoj
+  <header class="wrap top">
+    <a class="brand" href="./" aria-label="ManojHustler home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="13" height="13" rx="4" fill="#2848d8"/><rect x="17" y="2" width="13" height="13" rx="4" fill="#2848d8" opacity=".35"/><rect x="2" y="17" width="13" height="13" rx="4" fill="#2848d8" opacity=".35"/><rect x="17" y="17" width="13" height="13" rx="6.5" fill="currentColor"/></svg>
+      ManojHustler
     </a>
-    <nav class="nav" aria-label="Site">
-      <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
-    </nav>
+    <a class="btn chai sm" data-support href="#support">
+      <svg class="cup" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      Support
+    </a>
   </header>
+
   <main>
-    <section class="hero">
-      <div class="wrap">
-        <p class="kicker">Desktop software</p>
-        <h1>Apps, free to use.</h1>
-        <p class="lede">Manoj builds desktop apps and gives them away. No account, no subscription. New apps show up here as cards.</p>
-      </div>
+    <section class="wrap hero">
+      <h1>Apps I made for myself. <span>Free for you too.</span></h1>
+      <p class="lede">Hi, I’m Manoj. When I need a tool and can’t find a simple one, I build it. No sign-up, no ads. Download and use.</p>
     </section>
-    <section class="section" id="apps">
-      <div class="wrap">
-        <h2>All apps</h2>
-        <p class="intro">Each card opens that app’s page, with downloads for the computers it runs on.</p>
-        <div class="grid" data-app-grid>
-          <a class="card" href="cutdeck/">
-            <div class="card-top">
-              <img src="assets/cutdeck-icon.png" alt="" width="64" height="64">
-              <div>
-                <h2>Cutdeck</h2>
-                <p>Desktop video editor</p>
-              </div>
-            </div>
-            <p class="card-desc">Timeline editing, on-device auto captions, stabilization, and MP4 export from 0.25× to 100× speed.</p>
-            <div class="pills"><span class="pill">macOS</span><span class="pill">Linux</span><span class="pill">Windows</span></div>
-            <span class="reviews-hint">Reviews on the page</span>
-            <span class="more">Open Cutdeck</span>
-          </a>
-          <a class="card" href="bob-player/">
-            <div class="card-top">
-              <img src="assets/bob-player-icon.png" alt="" width="64" height="64">
-              <div>
-                <h2>Bob Player</h2>
-                <p>Tiny music player</p>
-              </div>
-            </div>
-            <p class="card-desc">A tiny music player for people who replay the same few songs all day.</p>
-            <div class="pills"><span class="pill">Windows</span></div>
-            <span class="reviews-hint">Reviews on the page</span>
-            <span class="more">Open Bob Player</span>
-          </a>
+
+    <section class="wrap apps" id="apps" aria-label="Apps" data-app-list>
+      <a class="app" href="cutdeck/" style="--app:#1f6fd1">
+        <img src="assets/cutdeck-icon.png" alt="" width="96" height="96">
+        <div>
+          <h2>Cutdeck</h2>
+          <p>A simple video editor with auto captions, stabilizing and speed-ups. Everything happens on your computer.</p>
+          <div class="os"><span>Mac</span><span>Windows</span><span>Linux</span></div>
         </div>
-      </div>
+        <span class="go">Get Cutdeck</span>
+      </a>
+      <a class="app" href="bob-player/" style="--app:#0f8a45">
+        <img src="assets/bob-player-icon.png" alt="" width="96" height="96">
+        <div>
+          <h2>Bob Player</h2>
+          <p>A tiny music bar for the few songs you play on repeat.</p>
+          <div class="os"><span>Windows</span></div>
+        </div>
+        <span class="go">Get Bob Player</span>
+      </a>
     </section>
-    <section class="section support-block" id="support" aria-labelledby="support-title">
-      <div class="wrap">
-        <p class="kicker">Optional</p>
-        <h2 id="support-title">Support my work</h2>
-        <p class="intro" data-support-blurb>Support is optional. The apps stay free either way, and it helps Manoj keep building them.</p>
-        <a class="support" data-support href="https://buymeacoffee.com/REPLACE_ME">Support my work</a>
-        <p class="placeholder" data-support-note>Support link placeholder. Set <code>supportUrl</code> in <code>website/data/site.json</code> to a Buy Me a Coffee, Patreon, or any other page. The button label is <code>supportLabel</code>. This note hides when the URL no longer contains <code>REPLACE_ME</code>.</p>
+
+    <section class="wrap chai-block" id="support" aria-labelledby="support-title">
+      <div>
+        <h2 id="support-title">Support ManojHustler</h2>
+        <p>Every app here is free and will stay that way. If they’re useful to you, your support funds updates and new apps.</p>
       </div>
+      <a class="btn chai" data-support href="#support">
+        <svg class="cup" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        Support my work
+      </a>
     </section>
   </main>
-  <footer class="site-footer">
-    <div class="wrap">
-      <p>Made by Manoj. The apps are free.</p>
-    </div>
+
+  <footer class="wrap foot">
+    <span>Made by Manoj, for himself first.</span>
+    <a href="https://github.com/manoj7019/cutdeck-desktop">Source on GitHub</a>
   </footer>
   <script src="js/site.js"></script>
 </body>
