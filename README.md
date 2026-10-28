@@ -89,13 +89,13 @@ git tag bobplayer-v1.0.0 && git push origin bobplayer-v1.0.0
 
 ```powershell
 $fw = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
-& "$fw\csc.exe" /nologo /utf8 /optimize+ /target:winexe /platform:x64 `
+& "$fw\csc.exe" /nologo /codepage:65001 /optimize+ /target:winexe /platform:x64 `
   /out:BobPlayer-windows-x64.exe `
   /r:System.Drawing.dll `
   /r:System.Windows.Forms.dll `
   /r:"$fw\WPF\PresentationCore.dll" `
   /r:"$fw\WPF\WindowsBase.dll" `
-  /r:"$fw\WPF\System.Xaml.dll" `
+  /r:"$fw\System.Xaml.dll" `
   apps\bob-player\BobPlayer.cs
 ```
 

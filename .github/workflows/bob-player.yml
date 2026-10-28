@@ -69,7 +69,11 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $out = Join-Path (Get-Location) "dist\BobPlayer-windows-x64.exe"
-          & $csc /nologo /utf8 /optimize+ /target:winexe /platform:x64 `
+          # This csc.exe is the .NET Framework compiler. It rejects /utf8 (CS2007).
+          # /codepage:65001 is the UTF-8 switch it accepts. The other flags are
+          # ones that compiler documents: /nologo, /optimize+, /target:winexe,
+          # /platform:x64, /out, and /r.
+          & $csc /nologo /codepage:65001 /optimize+ /target:winexe /platform:x64 `
             "/out:$out" `
             "/r:$($refs['System.dll'])" `
             "/r:$($refs['System.Drawing.dll'])" `
