@@ -1,70 +1,23 @@
 {
-  "_howToAddAnApp": "Append an object to apps, then add website/<id>/index.html. Give the app its own release tag prefix so it does not share releases/latest with another app. Cutdeck tags look like v1.2.3 (releaseTagPrefix \"v\"). Bob Player tags look like bobplayer-v1.0.0. On the product page, put data-release-prefix and data-release-asset on each download link. website/js/site.js points the link at the newest GitHub Release whose tag starts with that prefix. fallbackTag is the href used before that lookup runs. Download file names must match the assets uploaded by the app's workflow.",
+  "_help": "To add an app: add an entry here, then copy cutdeck/index.html into a new folder named after the id and edit it. See README.md.",
   "apps": [
     {
       "id": "cutdeck",
       "name": "Cutdeck",
-      "tagline": "Desktop video editor",
-      "description": "Timeline editing, on-device auto captions, stabilization, and MP4 export from 0.25× to 100× speed.",
+      "description": "A simple video editor with auto captions, stabilizing and speed-ups. Everything happens on your computer.",
       "href": "cutdeck/",
       "icon": "assets/cutdeck-icon.png",
-      "platforms": ["macOS", "Linux", "Windows"],
-      "repo": "manoj7019/cutdeck-desktop",
-      "releaseTagPrefix": "v",
-      "fallbackTag": "v0.1.0",
-      "accent": "#5ac8fa",
-      "downloads": [
-        {
-          "os": "macOS",
-          "label": "Apple Silicon",
-          "asset": "Cutdeck-macos-apple-silicon.dmg"
-        },
-        {
-          "os": "macOS",
-          "label": "Intel",
-          "asset": "Cutdeck-macos-intel.dmg"
-        },
-        {
-          "os": "Linux",
-          "label": "AppImage",
-          "asset": "Cutdeck-linux-x86_64.AppImage"
-        },
-        {
-          "os": "Linux",
-          "label": ".deb",
-          "asset": "Cutdeck-linux-amd64.deb"
-        },
-        {
-          "os": "Windows",
-          "label": "64-bit setup",
-          "asset": "Cutdeck-windows-x64-setup.exe"
-        },
-        {
-          "os": "Windows",
-          "label": ".msi",
-          "asset": "Cutdeck-windows-x64.msi"
-        }
-      ]
+      "color": "#1f6fd1",
+      "platforms": ["Mac", "Windows", "Linux"]
     },
     {
       "id": "bob-player",
       "name": "Bob Player",
-      "tagline": "Tiny music player",
-      "description": "A tiny music player for people who replay the same few songs all day.",
+      "description": "A tiny music bar for the few songs you play on repeat.",
       "href": "bob-player/",
       "icon": "assets/bob-player-icon.png",
-      "platforms": ["Windows"],
-      "repo": "manoj7019/cutdeck-desktop",
-      "releaseTagPrefix": "bobplayer-v",
-      "fallbackTag": "bobplayer-v1.0.0",
-      "accent": "#1ed760",
-      "downloads": [
-        {
-          "os": "Windows",
-          "label": "64-bit",
-          "asset": "BobPlayer-windows-x64.exe"
-        }
-      ]
+      "color": "#0f8a45",
+      "platforms": ["Windows"]
     }
   ]
 }
